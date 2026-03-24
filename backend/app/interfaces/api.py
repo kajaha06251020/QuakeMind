@@ -1,23 +1,25 @@
 """FastAPI アプリケーション。"""
 import asyncio
+import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Security, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
-from config import settings, configure_langsmith
-from data import db, jma_client
-from graph import graph
+from app.config import settings, configure_langsmith
+from app.infrastructure import db, jma_client
+from app.usecases.pipeline import graph
 
 logger = logging.getLogger(__name__)
 
-# ─── API キー認証（/trigger エンドポイント保護）────────────────────────────────
-
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+_data_stale = False
+_last_updated: Optional[datetime] = None
 
 
 async def require_api_key(key: str = Security(_api_key_header)) -> str:
@@ -26,14 +28,7 @@ async def require_api_key(key: str = Security(_api_key_header)) -> str:
     return key
 
 
-# ─── Monitor ループ ───────────────────────────────────────────────────────────
-
-_data_stale = False
-_last_updated: Optional[datetime] = None
-
-
 async def _process_event(event) -> None:
-    """1件の地震イベントを LangGraph パイプラインで処理する。"""
     initial_state = {
         "event_id": event.event_id,
         "magnitude": event.magnitude,
@@ -47,53 +42,33 @@ async def _process_event(event) -> None:
     }
     try:
         await graph.ainvoke(initial_state)
-        logger.info("[Monitor] パイプライン完了: %s", event.event_id)
     except Exception as e:
         logger.error("[Monitor] パイプラインエラー %s: %s", event.event_id, e)
 
 
 async def monitor_loop() -> None:
-    """バックグラウンドポーリングループ。"""
     global _data_stale, _last_updated
     logger.info("Monitor ループ開始（間隔: %ds）", settings.poll_interval_seconds)
-
     while True:
         try:
             events = await jma_client.fetch_recent_events(limit=20)
             _last_updated = datetime.now(timezone.utc)
+            _data_stale = len(events) == 0
 
-            if not events:
-                _data_stale = True
-                logger.warning("P2P API からイベントを取得できませんでした")
-            else:
-                _data_stale = False
-
-            # 未処理イベントだけを処理
-            new_events = []
             for event in events:
                 if not await db.is_event_seen(event.event_id):
-                    # 閾値チェック
-                    if event.magnitude >= settings.magnitude_threshold:
-                        new_events.append(event)
                     await db.mark_event_seen(event.event_id)
-
-            if new_events:
-                logger.info("[Monitor] 新規イベント %d 件を処理します", len(new_events))
-                for event in new_events:
-                    await _process_event(event)
-            else:
-                logger.debug("[Monitor] 新規対象イベントなし")
+                    if event.magnitude >= settings.magnitude_threshold:
+                        await _process_event(event)
 
         except asyncio.CancelledError:
             logger.info("Monitor ループ停止")
             raise
         except Exception as e:
-            logger.error("[Monitor] ループ内エラー: %s", e)
+            logger.error("[Monitor] ループエラー: %s", e)
 
         await asyncio.sleep(settings.poll_interval_seconds)
 
-
-# ─── FastAPI lifespan ─────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -108,34 +83,34 @@ async def lifespan(app: FastAPI):
             await task
         except asyncio.CancelledError:
             pass
-        logger.info("Monitor ループを正常に停止しました")
 
-
-# ─── FastAPI アプリ ────────────────────────────────────────────────────────────
 
 app = FastAPI(
     title="QuakeMind API",
-    description="自律型防災 AGI — 地震アラート生成システム (Phase 1)",
+    description="自律型防災 AGI — Phase 1",
     version="0.1.0",
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# ─── エンドポイント ────────────────────────────────────────────────────────────
 
-@app.get("/status", summary="最新リスクスコアとシステム状態を返す")
+@app.get("/status")
 async def get_status():
-    status = await db.get_status()
+    status = await db.get_db_status()
     latest = status.get("latest")
-
-    import json
     latest_risk = None
     if latest and latest.get("risk_json"):
         try:
             latest_risk = json.loads(latest["risk_json"])
         except Exception:
             pass
-
     return {
         "last_updated": _last_updated.isoformat() if _last_updated else None,
         "data_stale": _data_stale,
@@ -144,7 +119,7 @@ async def get_status():
     }
 
 
-@app.get("/alert/latest", summary="最新の AlertMessage を返す")
+@app.get("/alert/latest")
 async def get_latest_alert():
     row = await db.get_latest_alert()
     if not row:
@@ -164,21 +139,12 @@ class TriggerRequest(BaseModel):
     magnitude_override: Optional[float] = None
 
 
-@app.post(
-    "/trigger",
-    summary="Monitor を手動起動（開発・テスト用）",
-    dependencies=[Depends(require_api_key)],
-)
+@app.post("/trigger", dependencies=[Depends(require_api_key)])
 async def trigger_monitor(body: TriggerRequest):
     if body.magnitude_override is not None and not (0.0 <= body.magnitude_override <= 10.0):
-        raise HTTPException(status_code=422, detail="magnitude_override は 0.0〜10.0 の範囲で指定してください")
-
+        raise HTTPException(status_code=422, detail="magnitude_override は 0.0〜10.0 で指定してください")
     trigger_id = f"manual-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-    logger.info("[Trigger] 手動起動 id=%s test=%s", trigger_id, body.test_mode)
-
-    # バックグラウンドで1回だけポーリングを実行
     asyncio.create_task(_one_shot_poll(body.magnitude_override))
-
     return {"status": "triggered", "trigger_id": trigger_id}
 
 

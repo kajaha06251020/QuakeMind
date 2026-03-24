@@ -1,7 +1,16 @@
-.env
-*.db
+# Python
 __pycache__/
 *.pyc
-.pytest_cache/
 .venv/
 venv/
+*.db
+backend/.env
+
+# Node
+node_modules/
+.next/
+frontend/.env.local
+
+# General
+.DS_Store
+*.log

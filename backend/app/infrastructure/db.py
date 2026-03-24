@@ -1,12 +1,12 @@
-"""SQLite 永続化レイヤー。seen_event_ids と最新アラートを保存する。"""
-import json
+"""SQLite 永続化レイヤー。"""
 import logging
-import aiosqlite
 from datetime import datetime
 from typing import Optional
 
-from config import settings
-from state import EarthquakeEvent, RiskScore, EvacuationRoute, AlertMessage
+import aiosqlite
+
+from app.config import settings
+from app.domain.models import AlertMessage, RiskScore, EvacuationRoute
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,6 @@ async def mark_event_seen(event_id: str) -> None:
             "INSERT OR IGNORE INTO seen_events (event_id, created_at) VALUES (?, ?)",
             (event_id, datetime.utcnow().isoformat()),
         )
-        # エビクション: 上限超過分を削除
         await db.execute(f"""
             DELETE FROM seen_events WHERE event_id NOT IN (
                 SELECT event_id FROM seen_events
@@ -80,7 +79,6 @@ async def save_alert(
                 route.model_dump_json() if route else None,
             ),
         )
-        # エビクション
         await db.execute(f"""
             DELETE FROM alerts WHERE event_id NOT IN (
                 SELECT event_id FROM alerts
@@ -97,24 +95,16 @@ async def get_latest_alert() -> Optional[dict]:
             "SELECT * FROM alerts ORDER BY timestamp DESC LIMIT 1"
         ) as cursor:
             row = await cursor.fetchone()
-            if row is None:
-                return None
-            return dict(row)
+            return dict(row) if row else None
 
 
-async def get_status() -> dict:
+async def get_db_status() -> dict:
     async with aiosqlite.connect(settings.db_path) as db:
         async with db.execute("SELECT COUNT(*) FROM alerts") as cursor:
             total = (await cursor.fetchone())[0]
-        async with db.execute(
-            "SELECT * FROM alerts ORDER BY timestamp DESC LIMIT 1"
-        ) as cursor:
-            db.row_factory = aiosqlite.Row
+        db.row_factory = aiosqlite.Row
         async with db.execute(
             "SELECT * FROM alerts ORDER BY timestamp DESC LIMIT 1"
         ) as cursor:
             row = await cursor.fetchone()
-    return {
-        "total_alerts": total,
-        "latest": dict(row) if row else None,
-    }
+    return {"total_alerts": total, "latest": dict(row) if row else None}

@@ -1,10 +1,8 @@
-from typing import Annotated, TypedDict, Literal
+"""ドメインモデル。外側（インフラ・UI）に依存しない純粋な定義。"""
+from typing import Literal
 from datetime import datetime
 from pydantic import BaseModel
-import operator
 
-
-# ─── Pydantic データモデル ────────────────────────────────────────────────────
 
 class EarthquakeEvent(BaseModel):
     event_id: str
@@ -43,41 +41,34 @@ class AlertMessage(BaseModel):
     timestamp: datetime
 
 
-# ─── LangGraph 状態（1イベント処理サイクル） ──────────────────────────────────
-# Monitor は FastAPI lifespan ループで動き、新規イベントごとに graph.ainvoke() を呼ぶ。
-# この State は predict → route → personal の処理を通じて受け渡される。
+# ─── LangGraph EventState ─────────────────────────────────────────────────────
+
+from typing import TypedDict
+
 
 class EventState(TypedDict):
-    # 入力（Monitor から渡される EarthquakeEvent の各フィールド）
     event_id: str
     magnitude: float
     depth_km: float
     latitude: float
     longitude: float
     region: str
-    timestamp: str  # ISO8601 文字列
-
-    # Predict Agent が書き込む
+    timestamp: str
     estimated_intensity: float
     aftershock_prob_72h: float
     tsunami_flag: bool
     severity: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
-
-    # Route Agent が書き込む
     danger_radius_km: float
     safe_direction: str
     notes: str
-
-    # Personal Agent が書き込む
     ja_text: str
     en_text: str
     is_fallback: bool
-
-    # エラー
     error: str
 
 
-# severity マッピング（仕様書準拠）
+# ─── severity マッピング ───────────────────────────────────────────────────────
+
 def compute_severity(
     estimated_intensity: float,
     aftershock_prob_72h: float,

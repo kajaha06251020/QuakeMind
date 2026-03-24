@@ -25,8 +25,6 @@ class Settings(BaseSettings):
 
     # 地震検知閾値
     magnitude_threshold: float = 4.0
-    cluster_window_minutes: int = 30
-    cluster_count_threshold: int = 3
 
     # SQLite 永続化
     db_path: str = "quakemind.db"
