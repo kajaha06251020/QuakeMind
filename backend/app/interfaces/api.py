@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app.config import settings, configure_langsmith
 from app.infrastructure import db, jma_client
+from app.interfaces.analysis_router import router as analysis_router
 from app.usecases.pipeline import graph
 
 logger = logging.getLogger(__name__)
@@ -87,8 +88,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="QuakeMind API",
-    description="自律型防災 AGI — Phase 1",
-    version="0.1.0",
+    description="自律型防災 AGI — Phase 1 + Phase 2 研究ツール",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -99,6 +100,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(analysis_router)
 
 
 @app.get("/status")
