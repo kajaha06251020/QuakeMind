@@ -84,7 +84,10 @@ async def personal_node(state: EventState) -> dict:
             event_id=state["event_id"],
             danger_radius_km=state.get("danger_radius_km", 10.0),
             safe_direction=state.get("safe_direction", ""),
-            notes=state.get("notes", ""), generated_at=now,
+            notes=state.get("notes", ""),
+            generated_at=now,
+            latitude=state.get("latitude"),
+            longitude=state.get("longitude"),
         )
         await db.save_alert(alert, risk, route)
         logger.info("[Personal] 保存完了: %s severity=%s fallback=%s",

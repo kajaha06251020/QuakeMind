@@ -138,6 +138,13 @@ async def get_latest_alert():
     }
 
 
+@app.get("/locations")
+async def get_alert_locations():
+    """マップ表示用の震源地位置情報リスト。"""
+    locations = await db.get_alert_locations(limit=50)
+    return {"locations": locations}
+
+
 @app.get("/alerts")
 async def get_alerts(limit: int = Query(default=20, ge=1, le=100), offset: int = Query(default=0, ge=0)):
     alerts, total = await db.get_alerts(limit=limit, offset=offset)

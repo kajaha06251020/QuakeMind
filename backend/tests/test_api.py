@@ -99,3 +99,12 @@ async def test_sse_stream_headers():
     assert "text/event-stream" in (content_type or "")
     assert first_chunk is not None, "SSE heartbeat がタイムアウト内に受信されなかった"
     assert "heartbeat" in first_chunk
+
+
+def test_get_locations(client):
+    """GET /locations が正しいスキーマを返すこと。"""
+    response = client.get("/locations")
+    assert response.status_code == 200
+    data = response.json()
+    assert "locations" in data
+    assert isinstance(data["locations"], list)

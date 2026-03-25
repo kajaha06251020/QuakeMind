@@ -1,5 +1,5 @@
 """ドメインモデル。外側（インフラ・UI）に依存しない純粋な定義。"""
-from typing import Literal
+from typing import Literal, Optional
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -30,6 +30,8 @@ class EvacuationRoute(BaseModel):
     safe_direction: str
     notes: str
     generated_at: datetime
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class AlertMessage(BaseModel):
