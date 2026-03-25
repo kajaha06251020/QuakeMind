@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from app.config import settings, configure_langsmith
 from app.infrastructure import db, jma_client
+from app.infrastructure.multi_source import fetch_all_sources
 from app.interfaces.analysis_router import router as analysis_router
 from app.usecases.pipeline import graph
 
@@ -53,7 +54,7 @@ async def monitor_loop() -> None:
     logger.info("Monitor ループ開始（間隔: %ds）", settings.poll_interval_seconds)
     while True:
         try:
-            events = await jma_client.fetch_recent_events(limit=20)
+            events = await fetch_all_sources(limit=20)
             _last_updated = datetime.now(timezone.utc)
             _data_stale = len(events) == 0
 
@@ -241,7 +242,7 @@ async def trigger_monitor(body: TriggerRequest):
 
 
 async def _one_shot_poll(magnitude_override: Optional[float]) -> None:
-    events = await jma_client.fetch_recent_events(limit=5)
+    events = await fetch_all_sources(limit=5)
     for event in events:
         if magnitude_override:
             event = event.model_copy(update={"magnitude": magnitude_override})
