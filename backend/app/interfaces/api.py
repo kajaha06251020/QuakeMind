@@ -6,8 +6,9 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query, Security, Depends
+from fastapi import FastAPI, HTTPException, Query, Request, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
@@ -156,6 +157,33 @@ async def get_alerts(limit: int = Query(default=20, ge=1, le=100), offset: int =
         "limit": limit,
         "offset": offset,
     }
+
+
+@app.get("/events/stream")
+async def stream_events(request: Request):
+    """SSE: 新アラートが発生するたびにデータをプッシュする。"""
+    async def generator():
+        last_event_id: str | None = None
+        yield ": heartbeat\n\n"
+        while True:
+            if await request.is_disconnected():
+                break
+            row = await db.get_latest_alert()
+            if row and row["event_id"] != last_event_id:
+                last_event_id = row["event_id"]
+                payload = json.dumps(
+                    {
+                        "event_id": row["event_id"],
+                        "severity": row["severity"],
+                        "ja_text": row["ja_text"],
+                        "timestamp": row["timestamp"],
+                    },
+                    ensure_ascii=False,
+                )
+                yield f"data: {payload}\n\n"
+            await asyncio.sleep(3)
+
+    return StreamingResponse(generator(), media_type="text/event-stream")
 
 
 class TriggerRequest(BaseModel):
