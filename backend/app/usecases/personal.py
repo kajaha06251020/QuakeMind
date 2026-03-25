@@ -1,21 +1,13 @@
-"""Personal Agent: Claude でエンドユーザー向けアラート文を生成する。"""
-import json
+"""Personal Agent: LLMプロバイダー経由でエンドユーザー向けアラート文を生成する。"""
 import logging
 from datetime import datetime, timezone
 
-from anthropic import AsyncAnthropic
-
-from app.config import settings
 from app.domain.models import EventState, AlertMessage, RiskScore, EvacuationRoute
 from app.infrastructure import db
 from app.services.webhook import dispatch_webhooks
+from app.usecases.llm_factory import generate_alert_with_fallback
 
 logger = logging.getLogger(__name__)
-
-_claude = AsyncAnthropic(
-    api_key=settings.anthropic_api_key,
-    max_retries=settings.claude_max_retries,
-)
 
 
 def _fallback_texts(state: EventState) -> tuple[str, str]:
@@ -34,27 +26,18 @@ def _fallback_texts(state: EventState) -> tuple[str, str]:
 
 
 async def _generate_alert(state: EventState) -> tuple[str, str, bool]:
-    prompt = (
-        f"以下の情報からJSON形式で避難アラートを生成してください。\n"
-        f"- 地域: {state['region']}, M{state['magnitude']}, 深度{state['depth_km']}km\n"
-        f"- 深刻度: {state.get('severity', 'MEDIUM')}\n"
-        f"- 推奨避難方向: {state.get('safe_direction', '安全な場所')}\n"
-        f"- 注意事項: {state.get('notes', '')}\n\n"
-        f'出力形式（JSONのみ）:\n'
-        f'{{"ja_text": "（日本語、200文字以内）", "en_text": "（English, 150 chars max）"}}'
-    )
     try:
-        response = await _claude.messages.create(
-            model=settings.claude_model,
-            max_tokens=400,
-            system="You are a concise emergency alert system. Output valid JSON only.",
-            messages=[{"role": "user", "content": prompt}],
+        ja, en, is_fallback = await generate_alert_with_fallback(
+            magnitude=state["magnitude"],
+            depth=state["depth_km"],
+            location=state["region"],
+            severity=state.get("severity", "MEDIUM"),
+            safe_direction=state.get("safe_direction", ""),
+            notes=state.get("notes", ""),
         )
-        text = response.content[0].text.strip()
-        data = json.loads(text[text.find("{"):text.rfind("}") + 1])
-        return data["ja_text"], data["en_text"], False
+        return ja, en, is_fallback
     except Exception as e:
-        logger.warning("[Personal] Claude 失敗、フォールバック: %s", e)
+        logger.warning("[Personal] LLM失敗、テンプレートフォールバック: %s", e)
         ja, en = _fallback_texts(state)
         return ja, en, True
 
