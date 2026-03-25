@@ -65,10 +65,8 @@ async def stream_events() -> AsyncGenerator[EarthquakeEvent, None]:
     """
     while True:
         try:
-            conn = websockets.connect(settings.p2p_ws_url)
-            if asyncio.iscoroutine(conn):
-                # テストモック（async side_effect）または将来の await-only API 向け
-                ws = await conn
+            async with websockets.connect(settings.p2p_ws_url) as ws:
+                logger.info("[WS] P2P WebSocket 接続: %s", settings.p2p_ws_url)
                 async for raw_msg in ws:
                     try:
                         raw = json.loads(raw_msg)
@@ -80,20 +78,6 @@ async def stream_events() -> AsyncGenerator[EarthquakeEvent, None]:
                     event = _parse_p2p_event(raw)
                     if event:
                         yield event
-            else:
-                async with conn as ws:
-                    logger.info("[WS] P2P WebSocket 接続: %s", settings.p2p_ws_url)
-                    async for raw_msg in ws:
-                        try:
-                            raw = json.loads(raw_msg)
-                        except json.JSONDecodeError:
-                            logger.warning("[WS] JSON デコード失敗")
-                            continue
-                        if raw.get("code") != 551:
-                            continue
-                        event = _parse_p2p_event(raw)
-                        if event:
-                            yield event
         except asyncio.CancelledError:
             logger.info("[WS] WebSocket モニター停止")
             raise

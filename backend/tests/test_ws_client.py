@@ -94,7 +94,7 @@ async def test_stream_events_reconnects_on_error():
 
     call_count = 0
 
-    async def connect_side_effect(*args, **kwargs):
+    def connect_side_effect(*args, **kwargs):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
