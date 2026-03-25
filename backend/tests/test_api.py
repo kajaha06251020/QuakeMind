@@ -1,5 +1,10 @@
 """APIエンドポイントのテスト。"""
+import asyncio
+
+import anyio
 import pytest
+
+from app.interfaces.api import app as fastapi_app
 
 
 def test_get_alerts_empty(client):
@@ -35,10 +40,6 @@ def test_get_status(client):
 @pytest.mark.anyio
 async def test_sse_stream_headers():
     """GET /events/stream が text/event-stream を返すこと。"""
-    import asyncio
-    import anyio
-    from app.interfaces.api import app as fastapi_app
-
     status_code = None
     content_type = None
     first_chunk = None
