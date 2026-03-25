@@ -64,3 +64,16 @@ def test_parse_jma_xml_invalid_returns_none():
     """不正な XML は None を返す。"""
     event = _parse_jma_earthquake_xml("<invalid>", event_id="jma-bad")
     assert event is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_disabled_returns_empty():
+    """jma_xml_enabled=False のとき HTTP を呼ばずに空リストを返す。"""
+    from app.infrastructure.jma_xml_client import fetch_recent_events
+    from unittest.mock import patch
+
+    with patch("app.infrastructure.jma_xml_client.settings") as mock_settings:
+        mock_settings.jma_xml_enabled = False
+        events = await fetch_recent_events()
+
+    assert events == []

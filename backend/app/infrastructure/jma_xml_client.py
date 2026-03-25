@@ -3,6 +3,7 @@
 Atom Feed から地震情報 XML (VXSE53) を取得・パースする。
 座標フォーマット: ISO 6709 (+緯度+経度-深さm/)
 """
+import asyncio
 import logging
 import re
 from datetime import datetime, timezone
@@ -102,45 +103,44 @@ async def fetch_recent_events(limit: int = 20) -> list[EarthquakeEvent]:
     if not settings.jma_xml_enabled:
         return []
 
-    try:
-        async with httpx.AsyncClient(timeout=settings.jma_timeout) as client:
+    async with httpx.AsyncClient(timeout=settings.jma_timeout) as client:
+        # Atom Feed 取得
+        try:
             resp = await client.get(settings.jma_xml_feed_url)
             resp.raise_for_status()
             feed_root = etree.fromstring(resp.content)
-    except Exception as e:
-        logger.error("[JMA XML] Atom Feed 取得エラー: %s", e)
-        return []
+        except Exception as e:
+            logger.error("[JMA XML] Atom Feed 取得エラー: %s", e)
+            return []
 
-    entries = feed_root.findall("{http://www.w3.org/2005/Atom}entry")
-    events = []
+        # 震源情報エントリを収集
+        entries = feed_root.findall("{http://www.w3.org/2005/Atom}entry")
+        targets = []
+        for entry in entries[:limit]:
+            id_el = entry.find("{http://www.w3.org/2005/Atom}id")
+            link_el = entry.find("{http://www.w3.org/2005/Atom}link")
+            if id_el is None or link_el is None:
+                continue
+            xml_url = link_el.get("href", "")
+            if not xml_url:
+                continue
+            title_el = entry.find("{http://www.w3.org/2005/Atom}title")
+            if title_el is None or "震源" not in (title_el.text or ""):
+                continue
+            event_id = "jma-" + (id_el.text or "").strip().split("/")[-1]
+            targets.append((event_id, xml_url))
 
-    for entry in entries[:limit]:
-        id_el = entry.find("{http://www.w3.org/2005/Atom}id")
-        link_el = entry.find("{http://www.w3.org/2005/Atom}link")
-        if id_el is None or link_el is None:
-            continue
-
-        event_id = "jma-" + (id_el.text or "").strip().split("/")[-1]
-        xml_url = link_el.get("href", "")
-        if not xml_url:
-            continue
-
-        # VXSE53 (震源・震度情報) のみ対象
-        title_el = entry.find("{http://www.w3.org/2005/Atom}title")
-        if title_el is None or "震源" not in (title_el.text or ""):
-            continue
-
-        try:
-            async with httpx.AsyncClient(timeout=settings.jma_timeout) as client:
+        # 個別 XML を並列取得
+        async def _fetch_one(event_id: str, xml_url: str) -> EarthquakeEvent | None:
+            try:
                 xml_resp = await client.get(xml_url)
                 xml_resp.raise_for_status()
-                xml_text = xml_resp.text
-        except Exception as e:
-            logger.warning("[JMA XML] XML 取得エラー %s: %s", xml_url, e)
-            continue
+                event = _parse_jma_earthquake_xml(xml_resp.text, event_id)
+                if event and event.magnitude >= settings.magnitude_threshold:
+                    return event
+            except Exception as e:
+                logger.warning("[JMA XML] XML 取得エラー %s: %s", xml_url, e)
+            return None
 
-        event = _parse_jma_earthquake_xml(xml_text, event_id)
-        if event and event.magnitude >= settings.magnitude_threshold:
-            events.append(event)
-
-    return events
+        results = await asyncio.gather(*(_fetch_one(eid, url) for eid, url in targets))
+    return [e for e in results if e is not None]
