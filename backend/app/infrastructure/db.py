@@ -108,3 +108,17 @@ async def get_db_status() -> dict:
         ) as cursor:
             row = await cursor.fetchone()
     return {"total_alerts": total, "latest": dict(row) if row else None}
+
+
+async def get_alerts(limit: int = 20, offset: int = 0) -> tuple[list[dict], int]:
+    """アラート履歴を新しい順で取得。(alerts, total) を返す。"""
+    async with aiosqlite.connect(settings.db_path) as db:
+        async with db.execute("SELECT COUNT(*) FROM alerts") as cursor:
+            total = (await cursor.fetchone())[0]
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            "SELECT * FROM alerts ORDER BY timestamp DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        ) as cursor:
+            rows = await cursor.fetchall()
+    return [dict(r) for r in rows], total

@@ -137,6 +137,29 @@ async def get_latest_alert():
     }
 
 
+@app.get("/alerts")
+async def get_alerts(limit: int = 20, offset: int = 0):
+    if not (1 <= limit <= 100):
+        raise HTTPException(status_code=422, detail="limit は 1〜100 で指定してください")
+    alerts, total = await db.get_alerts(limit=limit, offset=offset)
+    return {
+        "alerts": [
+            {
+                "event_id": row["event_id"],
+                "severity": row["severity"],
+                "ja_text": row["ja_text"],
+                "en_text": row["en_text"],
+                "is_fallback": bool(row["is_fallback"]),
+                "timestamp": row["timestamp"],
+            }
+            for row in alerts
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
 class TriggerRequest(BaseModel):
     test_mode: bool = False
     magnitude_override: Optional[float] = None
