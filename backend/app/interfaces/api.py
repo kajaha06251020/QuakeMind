@@ -138,7 +138,7 @@ async def get_latest_alert():
 
 
 @app.get("/alerts")
-async def get_alerts(limit: int = Query(default=20, ge=1, le=100), offset: int = 0):
+async def get_alerts(limit: int = Query(default=20, ge=1, le=100), offset: int = Query(default=0, ge=0)):
     alerts, total = await db.get_alerts(limit=limit, offset=offset)
     return {
         "alerts": [
