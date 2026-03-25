@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     usgs_api_url: str = "https://earthquake.usgs.gov/fdsnws/event/1/query"
     usgs_japan_bbox: list[float] = [24.0, 46.0, 122.0, 154.0]  # [min_lat, max_lat, min_lon, max_lon]
 
+    # 気象庁 XML 電文
+    jma_xml_enabled: bool = False   # デフォルト無効（Atom Feed の解析に追加コストあり）
+    jma_xml_feed_url: str = "https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml"
+
 
 settings = Settings()
 
