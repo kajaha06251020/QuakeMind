@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     poseidon_dataset_name: str = "JoshuaCarterResearch/POSEIDON"
     poseidon_sample_limit: int = 10000  # 日本周辺からサンプリングする最大件数
 
+    # LLMプロバイダー
+    llm_provider: str = "local"          # "local" | "claude"
+    local_llm_base_url: str = "http://127.0.0.1:8081"
+    local_llm_timeout: float = 120.0
+    local_llm_fallback_to_claude: bool = True
+
 
 settings = Settings()
 
