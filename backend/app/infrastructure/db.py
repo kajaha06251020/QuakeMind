@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
+import json
 import aiosqlite
 
 from app.config import settings
@@ -112,7 +113,6 @@ async def get_db_status() -> dict:
 
 async def get_alert_locations(limit: int = 50) -> list[dict]:
     """最新N件のアラートの震源地位置情報を取得（マップ表示用）。"""
-    import json as _json
     async with aiosqlite.connect(settings.db_path) as db:
         db.row_factory = aiosqlite.Row
         async with db.execute(
@@ -126,7 +126,7 @@ async def get_alert_locations(limit: int = 50) -> list[dict]:
         if not row["route_json"]:
             continue
         try:
-            route = _json.loads(row["route_json"])
+            route = json.loads(row["route_json"])
             lat = route.get("latitude")
             lon = route.get("longitude")
             if lat is None or lon is None:
@@ -139,7 +139,8 @@ async def get_alert_locations(limit: int = 50) -> list[dict]:
                 "longitude": lon,
                 "danger_radius_km": route.get("danger_radius_km"),
             })
-        except Exception:
+        except Exception as e:
+            logger.warning("[DB] route_json のパース失敗 event_id=%s: %s", row["event_id"], e)
             continue
     return result
 
