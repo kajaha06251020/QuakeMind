@@ -59,6 +59,9 @@ async def fetch_recent_events(limit: int = 20) -> list[EarthquakeEvent]:
     if not settings.usgs_enabled:
         return []
 
+    if len(settings.usgs_japan_bbox) != 4:
+        logger.error("[USGS] usgs_japan_bbox は 4 要素 [min_lat, max_lat, min_lon, max_lon] が必要です")
+        return []
     min_lat, max_lat, min_lon, max_lon = settings.usgs_japan_bbox
     params = {
         "format": "geojson",
@@ -78,6 +81,10 @@ async def fetch_recent_events(limit: int = 20) -> list[EarthquakeEvent]:
             data = resp.json()
     except Exception as e:
         logger.error("[USGS] API エラー: %s", e)
+        return []
+
+    if not isinstance(data, dict):
+        logger.warning("[USGS] 予期しないレスポンス形式: %s", type(data))
         return []
 
     features = data.get("features", [])

@@ -94,3 +94,16 @@ async def test_fetch_empty_features():
         events = await fetch_recent_events()
 
     assert events == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_disabled_returns_empty():
+    """usgs_enabled=False のとき HTTP を呼ばずに空リストを返す。"""
+    from app.infrastructure.usgs_client import fetch_recent_events
+    from unittest.mock import patch
+
+    with patch("app.infrastructure.usgs_client.settings") as mock_settings:
+        mock_settings.usgs_enabled = False
+        events = await fetch_recent_events()
+
+    assert events == []
