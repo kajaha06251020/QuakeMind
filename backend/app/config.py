@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     jma_xml_enabled: bool = False   # デフォルト無効（Atom Feed の解析に追加コストあり）
     jma_xml_feed_url: str = "https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml"
 
+    # NASA GUARDIAN TEC 異常監視
+    guardian_enabled: bool = False
+    guardian_api_url: str = ""  # 本番環境で設定する
+
 
 settings = Settings()
 
