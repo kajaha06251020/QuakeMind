@@ -11,15 +11,18 @@ def _estimate_intensity(magnitude: float, depth_km: float, distance_km: float = 
     hypo_dist = math.sqrt(distance_km**2 + depth_km**2)
     if hypo_dist <= 0:
         hypo_dist = 1.0
-    intensity = 2.68 + 1.72 * magnitude - 1.58 * math.log10(hypo_dist)
+    intensity = 2.68 + 1.0 * magnitude - 1.58 * math.log10(hypo_dist)
     return max(0.0, min(7.0, round(intensity, 2)))
 
 
 def _estimate_aftershock_prob(magnitude: float) -> float:
-    K = 0.04 * max(0.1, magnitude - 3.0)
-    c, p = 0.02, 1.1
-    total = sum(K / ((t + c) ** p) for t in range(72))
-    return round(min(0.95, 1.0 - math.exp(-total)), 3)
+    """マグニチュード級の余震が72時間以内に発生する確率（経験式）。
+    Bath則に基づく近似: 大きい本震ほど余震確率が高い。
+    """
+    if magnitude <= 3.0:
+        return 0.0
+    prob = 1.0 - math.exp(-0.6 * (magnitude - 3.0))
+    return round(min(0.95, max(0.0, prob)), 3)
 
 
 def _check_tsunami_risk(magnitude: float, depth_km: float) -> bool:
