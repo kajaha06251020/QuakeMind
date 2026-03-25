@@ -54,6 +54,11 @@ class Settings(BaseSettings):
     guardian_enabled: bool = False
     guardian_api_url: str = ""  # 本番環境で設定する
 
+    # POSEIDON Dataset (HuggingFace)
+    poseidon_enabled: bool = False   # 初回ロードに時間がかかるためデフォルト無効
+    poseidon_dataset_name: str = "JoshuaCarterResearch/POSEIDON"
+    poseidon_sample_limit: int = 10000  # 日本周辺からサンプリングする最大件数
+
 
 settings = Settings()
 
