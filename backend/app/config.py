@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     webhook_urls: list[str] = []
     webhook_timeout: float = 5.0
 
+    # USGS Earthquake Catalog API
+    usgs_enabled: bool = True
+    usgs_api_url: str = "https://earthquake.usgs.gov/fdsnws/event/1/query"
+    usgs_japan_bbox: list[float] = [24.0, 46.0, 122.0, 154.0]  # [min_lat, max_lat, min_lon, max_lon]
+
 
 settings = Settings()
 
