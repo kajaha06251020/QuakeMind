@@ -244,7 +244,7 @@ async def trigger_monitor(body: TriggerRequest):
 async def _one_shot_poll(magnitude_override: Optional[float]) -> None:
     events = await fetch_all_sources(limit=5)
     for event in events:
-        if magnitude_override:
+        if magnitude_override is not None:
             event = event.model_copy(update={"magnitude": magnitude_override})
         if not await db.is_event_seen(event.event_id):
             await _process_event(event)
