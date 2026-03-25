@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     max_events: int = 100
     max_seen_ids: int = 10000
 
+    # Webhook 通知
+    webhook_urls: list[str] = []
+    webhook_timeout: float = 5.0
+
 
 settings = Settings()
 

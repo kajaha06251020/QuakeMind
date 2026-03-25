@@ -8,6 +8,7 @@ from anthropic import AsyncAnthropic
 from app.config import settings
 from app.domain.models import EventState, AlertMessage, RiskScore, EvacuationRoute
 from app.infrastructure import db
+from app.services.webhook import dispatch_webhooks
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,7 @@ async def personal_node(state: EventState) -> dict:
             longitude=state.get("longitude"),
         )
         await db.save_alert(alert, risk, route)
+        await dispatch_webhooks(alert)
         logger.info("[Personal] 保存完了: %s severity=%s fallback=%s",
                     state["event_id"], severity, is_fallback)
         return {"ja_text": ja_text, "en_text": en_text, "is_fallback": is_fallback}
