@@ -164,26 +164,39 @@ async def stream_events(request: Request):
     """SSE: 新アラートが発生するたびにデータをプッシュする。"""
     async def generator():
         last_event_id: str | None = None
+        # 最初にheartbeatを送信
         yield ": heartbeat\n\n"
         while True:
             if await request.is_disconnected():
                 break
-            row = await db.get_latest_alert()
-            if row and row["event_id"] != last_event_id:
-                last_event_id = row["event_id"]
-                payload = json.dumps(
-                    {
-                        "event_id": row["event_id"],
-                        "severity": row["severity"],
-                        "ja_text": row["ja_text"],
-                        "timestamp": row["timestamp"],
-                    },
-                    ensure_ascii=False,
-                )
-                yield f"data: {payload}\n\n"
+            try:
+                row = await db.get_latest_alert()
+                if row and row["event_id"] != last_event_id:
+                    last_event_id = row["event_id"]
+                    payload = json.dumps(
+                        {
+                            "event_id": row["event_id"],
+                            "severity": row["severity"],
+                            "ja_text": row["ja_text"],
+                            "timestamp": str(row["timestamp"]),
+                        },
+                        ensure_ascii=False,
+                    )
+                    yield f"data: {payload}\n\n"
+            except Exception as e:
+                logger.error("[SSE] ジェネレーターエラー: %s", e)
+                yield "event: error\ndata: internal error\n\n"
+                break
             await asyncio.sleep(3)
 
-    return StreamingResponse(generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 class TriggerRequest(BaseModel):

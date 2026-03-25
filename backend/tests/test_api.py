@@ -1,4 +1,5 @@
 """APIエンドポイントのテスト。"""
+import pytest
 
 
 def test_get_alerts_empty(client):
@@ -29,9 +30,6 @@ def test_get_status(client):
     """GET /status が動作すること。"""
     response = client.get("/status")
     assert response.status_code == 200
-
-
-import pytest
 
 
 @pytest.mark.anyio
@@ -98,5 +96,5 @@ async def test_sse_stream_headers():
 
     assert status_code == 200
     assert "text/event-stream" in (content_type or "")
-    assert first_chunk is not None
+    assert first_chunk is not None, "SSE heartbeat がタイムアウト内に受信されなかった"
     assert "heartbeat" in first_chunk
