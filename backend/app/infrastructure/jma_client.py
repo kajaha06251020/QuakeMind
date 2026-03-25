@@ -1,9 +1,12 @@
 """P2P地震情報 API クライアント。"""
+import asyncio
+import json
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import AsyncGenerator, Optional
 
 import httpx
+import websockets
 
 from app.config import settings
 from app.domain.models import EarthquakeEvent
@@ -54,3 +57,46 @@ async def fetch_recent_events(limit: int = 20) -> list[EarthquakeEvent]:
         logger.error("P2P API エラー: %s", e)
         return []
     return [e for raw in raw_list if (e := _parse_p2p_event(raw))]
+
+
+async def stream_events() -> AsyncGenerator[EarthquakeEvent, None]:
+    """P2P WebSocket から地震イベントをリアルタイムでストリーミング受信する。
+    接続断時は settings.p2p_ws_reconnect_delay 秒後に自動再接続する。
+    """
+    while True:
+        try:
+            conn = websockets.connect(settings.p2p_ws_url)
+            if asyncio.iscoroutine(conn):
+                # テストモック（async side_effect）または将来の await-only API 向け
+                ws = await conn
+                async for raw_msg in ws:
+                    try:
+                        raw = json.loads(raw_msg)
+                    except json.JSONDecodeError:
+                        logger.warning("[WS] JSON デコード失敗")
+                        continue
+                    if raw.get("code") != 551:
+                        continue
+                    event = _parse_p2p_event(raw)
+                    if event:
+                        yield event
+            else:
+                async with conn as ws:
+                    logger.info("[WS] P2P WebSocket 接続: %s", settings.p2p_ws_url)
+                    async for raw_msg in ws:
+                        try:
+                            raw = json.loads(raw_msg)
+                        except json.JSONDecodeError:
+                            logger.warning("[WS] JSON デコード失敗")
+                            continue
+                        if raw.get("code") != 551:
+                            continue
+                        event = _parse_p2p_event(raw)
+                        if event:
+                            yield event
+        except asyncio.CancelledError:
+            logger.info("[WS] WebSocket モニター停止")
+            raise
+        except Exception as e:
+            logger.error("[WS] 接続エラー: %s — %ds後再接続", e, settings.p2p_ws_reconnect_delay)
+            await asyncio.sleep(settings.p2p_ws_reconnect_delay)

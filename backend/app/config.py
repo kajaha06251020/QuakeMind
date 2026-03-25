@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
 
@@ -22,6 +24,8 @@ class Settings(BaseSettings):
     p2p_api_url: str = "https://api.p2pquake.net/v2/history"
     jma_timeout: float = 10.0
     poll_interval_seconds: int = 60
+    p2p_ws_url: Optional[str] = None   # 設定すると WebSocket モードで動作、未設定は HTTP ポーリング
+    p2p_ws_reconnect_delay: int = 5
 
     # 地震検知閾値
     magnitude_threshold: float = 4.0

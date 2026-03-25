@@ -72,11 +72,31 @@ async def monitor_loop() -> None:
         await asyncio.sleep(settings.poll_interval_seconds)
 
 
+async def ws_monitor_loop() -> None:
+    global _data_stale, _last_updated
+    logger.info("WebSocket モニターループ開始")
+    async for event in jma_client.stream_events():
+        _last_updated = datetime.now(timezone.utc)
+        _data_stale = False
+        try:
+            if not await db.is_event_seen(event.event_id):
+                await db.mark_event_seen(event.event_id)
+                if event.magnitude >= settings.magnitude_threshold:
+                    await _process_event(event)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error("[WSMonitor] イベント処理エラー %s: %s", event.event_id, e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_langsmith()
     await db.init_db()
-    task = asyncio.create_task(monitor_loop())
+    if settings.p2p_ws_url:
+        task = asyncio.create_task(ws_monitor_loop())
+    else:
+        task = asyncio.create_task(monitor_loop())
     try:
         yield
     finally:
