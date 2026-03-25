@@ -87,3 +87,70 @@ async def test_claude_generate_notes_success():
 
     notes = await provider.generate_notes("宮城県沖", 7.3, 10.0, True)
     assert "余震" in notes
+
+
+import httpx
+from app.infrastructure.local_llm_provider import LocalLLMProvider
+
+
+def test_local_provider_conforms_to_protocol():
+    provider = LocalLLMProvider()
+    assert isinstance(provider, LLMProvider)
+
+
+@pytest.mark.asyncio
+async def test_local_generate_alert_texts_success(httpx_mock):
+    """正常系: 思考トークン + JSON を返すケース。"""
+    provider = LocalLLMProvider(base_url="http://localhost:9999")
+
+    raw_content = (
+        '<SPECIAL_17>\nLet me think about this earthquake...\n<SPECIAL_12>\n'
+        '{"ja_text": "東京都で震度5弱の地震", "en_text": "Intensity 5- earthquake in Tokyo"}'
+    )
+    httpx_mock.add_response(
+        url="http://localhost:9999/completion",
+        json={"content": raw_content},
+    )
+
+    ja, en = await provider.generate_alert_texts(6.0, 10.0, "東京都", "HIGH")
+    assert ja == "東京都で震度5弱の地震"
+    assert en == "Intensity 5- earthquake in Tokyo"
+
+
+@pytest.mark.asyncio
+async def test_local_generate_alert_texts_no_json(httpx_mock):
+    """JSONが含まれないレスポンスはLLMErrorになる。"""
+    provider = LocalLLMProvider(base_url="http://localhost:9999")
+    httpx_mock.add_response(
+        url="http://localhost:9999/completion",
+        json={"content": "I cannot generate alerts."},
+    )
+
+    with pytest.raises(LLMError, match="JSON"):
+        await provider.generate_alert_texts(6.0, 10.0, "東京都", "HIGH")
+
+
+@pytest.mark.asyncio
+async def test_local_generate_alert_texts_connection_error(httpx_mock):
+    """接続エラーはLLMErrorになる。"""
+    provider = LocalLLMProvider(base_url="http://localhost:9999")
+    httpx_mock.add_exception(httpx.ConnectError("Connection refused"))
+
+    with pytest.raises(LLMError, match="ローカルLLM"):
+        await provider.generate_alert_texts(6.0, 10.0, "東京都", "HIGH")
+
+
+@pytest.mark.asyncio
+async def test_local_generate_notes_success(httpx_mock):
+    provider = LocalLLMProvider(base_url="http://localhost:9999")
+    raw_content = (
+        '<SPECIAL_17>\nThinking...\n<SPECIAL_12>\n'
+        '・余震に注意してください\n・高台に避難してください'
+    )
+    httpx_mock.add_response(
+        url="http://localhost:9999/completion",
+        json={"content": raw_content},
+    )
+
+    notes = await provider.generate_notes("宮城県沖", 7.3, 10.0, True)
+    assert "余震" in notes
