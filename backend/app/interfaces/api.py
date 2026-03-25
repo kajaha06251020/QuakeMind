@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Security, Depends
+from fastapi import FastAPI, HTTPException, Query, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
@@ -138,9 +138,7 @@ async def get_latest_alert():
 
 
 @app.get("/alerts")
-async def get_alerts(limit: int = 20, offset: int = 0):
-    if not (1 <= limit <= 100):
-        raise HTTPException(status_code=422, detail="limit は 1〜100 で指定してください")
+async def get_alerts(limit: int = Query(default=20, ge=1, le=100), offset: int = 0):
     alerts, total = await db.get_alerts(limit=limit, offset=offset)
     return {
         "alerts": [
