@@ -288,3 +288,34 @@ async def uncertainty_map():
     from app.services.active_learning import compute_model_uncertainty_map
     records = await _get_records()
     return compute_model_uncertainty_map(records)
+
+
+@router.get("/explain")
+async def explain(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.explainability import explain_prediction
+    records = await _get_records(region, start, end)
+    return explain_prediction(records, n_permutations=5)
+
+
+@router.get("/model-scoreboard")
+async def model_scoreboard():
+    from app.services.model_scoreboard import get_scoreboard
+    return get_scoreboard()
+
+
+@router.get("/knowledge-gaps")
+async def knowledge_gaps_endpoint(region: Optional[str] = None):
+    from app.services.knowledge_gaps import detect_knowledge_gaps
+    records = await _get_records(region=region)
+    return detect_knowledge_gaps(records)
+
+
+@router.get("/research-strategy")
+async def research_strategy(region: Optional[str] = None):
+    from app.services.knowledge_gaps import detect_knowledge_gaps
+    from app.services.model_scoreboard import get_scoreboard
+    from app.services.research_strategy import recommend_research_strategy
+    records = await _get_records(region=region)
+    gaps = detect_knowledge_gaps(records)
+    scoreboard = get_scoreboard()
+    return recommend_research_strategy(gaps, model_scoreboard=scoreboard)
