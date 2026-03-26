@@ -59,3 +59,57 @@ async def decision(region: Optional[str] = None, start: Optional[str] = None, en
     analysis["n_clusters"] = clusters["n_clusters"]
     up = unified_probability(analysis)
     return generate_recommendations(up["risk_level"], up["unified_probability"], region=region)
+
+
+@router.get("/uncertainty-decomposition")
+async def uncertainty_decomp(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.uncertainty_decomposition import decompose_uncertainty
+    records = await _get_records(region, start, end)
+    return decompose_uncertainty(records)
+
+
+@router.get("/generate-paper")
+async def gen_paper(region: Optional[str] = None):
+    from app.services.paper_generator import generate_paper
+    from fastapi.responses import PlainTextResponse
+    result = generate_paper(f"QuakeMind 研究報告: {region or '全域'}", {}, region)
+    return PlainTextResponse(content=result["markdown"], media_type="text/markdown")
+
+
+@router.get("/global-patterns")
+async def global_patterns(
+    b_value: float = Query(default=1.0),
+    rate_change: float = Query(default=1.0),
+    n_clusters: int = Query(default=0),
+    max_magnitude: float = Query(default=4.0),
+):
+    from app.services.global_learning import search_global_patterns
+    return search_global_patterns({"b_value": b_value, "rate_change_ratio": rate_change, "n_clusters": n_clusters, "max_magnitude": max_magnitude})
+
+
+@router.post("/resolve-contradictions")
+async def resolve_contradictions(predictions: dict):
+    from app.services.contradiction_resolver import resolve_and_explain
+    return resolve_and_explain(predictions)
+
+
+@router.get("/adaptive-intervals")
+async def adaptive_intervals(risk_level: str = Query(default="normal")):
+    from app.services.adaptive_collection import compute_adaptive_intervals
+    return compute_adaptive_intervals(risk_level)
+
+
+@router.get("/scenario-db")
+async def scenario_database():
+    from app.services.scenario_db import precompute_scenarios
+    return precompute_scenarios()
+
+
+@router.get("/scenario-db/nearest")
+async def nearest_scenario(
+    lat: float = Query(...),
+    lon: float = Query(...),
+    magnitude: float = Query(...),
+):
+    from app.services.scenario_db import find_nearest_scenario
+    return find_nearest_scenario(lat, lon, magnitude)
