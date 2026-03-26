@@ -194,3 +194,68 @@ async def get_events(
         }
         for r in rows
     ], total
+
+
+async def get_user_settings(user_id: str = "default") -> dict:
+    """ユーザー設定を取得する。存在しなければデフォルトで自動作成。"""
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(
+            select(UserSettingsDB).where(UserSettingsDB.user_id == user_id)
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            now = datetime.now(timezone.utc)
+            row = UserSettingsDB(
+                id=uuid.uuid4(), user_id=user_id,
+                min_severity="LOW", region_filters=[], notification_channels=[],
+                created_at=now, updated_at=now,
+            )
+            session.add(row)
+            await session.commit()
+            await session.refresh(row)
+        return {
+            "min_severity": row.min_severity,
+            "region_filters": row.region_filters or [],
+            "notification_channels": row.notification_channels or [],
+        }
+
+
+async def update_user_settings(
+    user_id: str = "default",
+    min_severity: str | None = None,
+    region_filters: list | None = None,
+    notification_channels: list | None = None,
+) -> dict:
+    """ユーザー設定を更新する。"""
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(
+            select(UserSettingsDB).where(UserSettingsDB.user_id == user_id)
+        )
+        row = result.scalar_one_or_none()
+        now = datetime.now(timezone.utc)
+        if row is None:
+            row = UserSettingsDB(
+                id=uuid.uuid4(), user_id=user_id,
+                min_severity=min_severity or "LOW",
+                region_filters=region_filters or [],
+                notification_channels=notification_channels or [],
+                created_at=now, updated_at=now,
+            )
+            session.add(row)
+        else:
+            if min_severity is not None:
+                row.min_severity = min_severity
+            if region_filters is not None:
+                row.region_filters = region_filters
+            if notification_channels is not None:
+                row.notification_channels = notification_channels
+            row.updated_at = now
+        await session.commit()
+        await session.refresh(row)
+    return {
+        "min_severity": row.min_severity,
+        "region_filters": row.region_filters or [],
+        "notification_channels": row.notification_channels or [],
+    }

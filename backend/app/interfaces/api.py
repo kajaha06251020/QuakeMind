@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, Security, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.config import settings, configure_langsmith
 from app.infrastructure import db, jma_client
@@ -276,3 +276,30 @@ async def _one_shot_poll(magnitude_override: Optional[float]) -> None:
         if not await db.is_event_seen(event.event_id):
             await _process_event(event)
             await db.mark_event_seen(event.event_id)
+
+
+class SettingsUpdate(BaseModel):
+    min_severity: Optional[str] = None
+    region_filters: Optional[list[str]] = None
+    notification_channels: Optional[list[dict]] = None
+
+    @field_validator("min_severity", mode="before")
+    @classmethod
+    def validate_severity(cls, v):
+        if v is not None and v not in ("LOW", "MEDIUM", "HIGH", "CRITICAL"):
+            raise ValueError("severity は LOW/MEDIUM/HIGH/CRITICAL のいずれかです")
+        return v
+
+
+@app.get("/settings")
+async def get_settings():
+    return await db.get_user_settings()
+
+
+@app.put("/settings")
+async def update_settings(body: SettingsUpdate):
+    return await db.update_user_settings(
+        min_severity=body.min_severity,
+        region_filters=body.region_filters,
+        notification_channels=body.notification_channels,
+    )
