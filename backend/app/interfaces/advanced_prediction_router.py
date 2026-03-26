@@ -116,3 +116,56 @@ async def domain_similarity(region: Optional[str] = None):
     source = extract_transfer_features(all_records)
     target = extract_transfer_features(region_records)
     return compute_domain_similarity(source, target)
+
+
+@router.get("/finite-fault")
+async def finite_fault(
+    magnitude: float = Query(...),
+    depth_km: float = Query(default=15.0),
+    rake: float = Query(default=90.0),
+):
+    from app.usecases.finite_fault import estimate_fault_geometry, generate_slip_distribution
+    geom = estimate_fault_geometry(magnitude, depth_km, rake)
+    slip = generate_slip_distribution(geom["rupture_length_km"], geom["rupture_width_km"], geom["average_slip_m"])
+    return {
+        "geometry": geom,
+        "slip_distribution": {k: v for k, v in slip.items() if k != "slip_grid"},
+        "has_slip_grid": True,
+    }
+
+
+@router.post("/stress-inversion")
+async def stress_inversion(mechanisms: list[dict]):
+    from app.usecases.stress_inversion import invert_stress_field
+    return invert_stress_field(mechanisms)
+
+
+@router.get("/cascade-probability")
+async def cascade_prob(
+    lat: float = Query(...),
+    lon: float = Query(...),
+    magnitude: float = Query(...),
+):
+    from app.usecases.cascade import compute_cascade_probability
+    return compute_cascade_probability(lat, lon, magnitude)
+
+
+@router.get("/rate-state-simulation")
+async def rate_state_sim(
+    a: float = Query(default=0.01),
+    b: float = Query(default=0.015),
+    duration_years: float = Query(default=50),
+):
+    from app.usecases.rate_state_sim import simulate_rate_state
+    return simulate_rate_state(a=a, b=b, duration_years=duration_years, dt_years=max(0.1, duration_years / 500))
+
+
+@router.get("/tectonic-classification")
+async def tectonic_classify(
+    region: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+):
+    from app.usecases.tectonic_classifier import classify_events
+    records = await _get_records(region, start, end)
+    return classify_events(records)
