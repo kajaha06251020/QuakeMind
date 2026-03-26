@@ -1,62 +1,45 @@
-"""SQLite 永続化レイヤー。"""
+"""データベースアクセスレイヤー（SQLAlchemy async）。"""
 import logging
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
-import json
-import aiosqlite
+from sqlalchemy import select, func, delete
 
-from app.config import settings
+from app.infrastructure.database import get_session_factory
+from app.infrastructure.models_db import SeenEventDB, AlertDB, EarthquakeEventDB, UserSettingsDB
 from app.domain.models import AlertMessage, RiskScore, EvacuationRoute
 
 logger = logging.getLogger(__name__)
 
 
 async def init_db() -> None:
-    async with aiosqlite.connect(settings.db_path) as db:
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS seen_events (
-                event_id TEXT PRIMARY KEY,
-                created_at TEXT NOT NULL
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS alerts (
-                event_id TEXT PRIMARY KEY,
-                severity TEXT NOT NULL,
-                ja_text TEXT NOT NULL,
-                en_text TEXT NOT NULL,
-                is_fallback INTEGER NOT NULL,
-                timestamp TEXT NOT NULL,
-                risk_json TEXT,
-                route_json TEXT
-            )
-        """)
-        await db.commit()
-    logger.info("DB initialized: %s", settings.db_path)
+    """互換用: database.init_db() を呼ぶ。"""
+    from app.infrastructure.database import init_db as _init
+    await _init()
 
 
 async def is_event_seen(event_id: str) -> bool:
-    async with aiosqlite.connect(settings.db_path) as db:
-        async with db.execute(
-            "SELECT 1 FROM seen_events WHERE event_id = ?", (event_id,)
-        ) as cursor:
-            return await cursor.fetchone() is not None
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(
+            select(SeenEventDB.event_id).where(SeenEventDB.event_id == event_id)
+        )
+        return result.scalar_one_or_none() is not None
 
 
 async def mark_event_seen(event_id: str) -> None:
-    async with aiosqlite.connect(settings.db_path) as db:
-        await db.execute(
-            "INSERT OR IGNORE INTO seen_events (event_id, created_at) VALUES (?, ?)",
-            (event_id, datetime.utcnow().isoformat()),
+    factory = get_session_factory()
+    async with factory() as session:
+        existing = await session.execute(
+            select(SeenEventDB).where(SeenEventDB.event_id == event_id)
         )
-        await db.execute(f"""
-            DELETE FROM seen_events WHERE event_id NOT IN (
-                SELECT event_id FROM seen_events
-                ORDER BY created_at DESC LIMIT {settings.max_seen_ids}
-            )
-        """)
-        await db.commit()
+        if existing.scalar_one_or_none() is None:
+            session.add(SeenEventDB(
+                event_id=event_id,
+                seen_at=datetime.now(timezone.utc),
+            ))
+            await session.commit()
 
 
 async def save_alert(
@@ -64,96 +47,101 @@ async def save_alert(
     risk: Optional[RiskScore] = None,
     route: Optional[EvacuationRoute] = None,
 ) -> None:
-    async with aiosqlite.connect(settings.db_path) as db:
-        await db.execute(
-            """INSERT OR REPLACE INTO alerts
-               (event_id, severity, ja_text, en_text, is_fallback, timestamp, risk_json, route_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                alert.event_id,
-                alert.severity,
-                alert.ja_text,
-                alert.en_text,
-                int(alert.is_fallback),
-                alert.timestamp.isoformat(),
-                risk.model_dump_json() if risk else None,
-                route.model_dump_json() if route else None,
-            ),
+    factory = get_session_factory()
+    async with factory() as session:
+        # 既存アラートを削除（UPSERT の代替）
+        await session.execute(
+            delete(AlertDB).where(AlertDB.event_id == alert.event_id)
         )
-        await db.execute(f"""
-            DELETE FROM alerts WHERE event_id NOT IN (
-                SELECT event_id FROM alerts
-                ORDER BY timestamp DESC LIMIT {settings.max_events}
-            )
-        """)
-        await db.commit()
+        session.add(AlertDB(
+            id=uuid.uuid4(),
+            event_id=alert.event_id,
+            severity=alert.severity,
+            ja_text=alert.ja_text,
+            en_text=alert.en_text,
+            is_fallback=alert.is_fallback,
+            created_at=alert.timestamp,
+            risk_json=risk.model_dump() if risk else None,
+            route_json=route.model_dump(mode="json") if route else None,
+        ))
+        await session.commit()
 
 
 async def get_latest_alert() -> Optional[dict]:
-    async with aiosqlite.connect(settings.db_path) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM alerts ORDER BY timestamp DESC LIMIT 1"
-        ) as cursor:
-            row = await cursor.fetchone()
-            return dict(row) if row else None
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(
+            select(AlertDB).order_by(AlertDB.created_at.desc()).limit(1)
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        return {
+            "event_id": row.event_id,
+            "severity": row.severity,
+            "ja_text": row.ja_text,
+            "en_text": row.en_text,
+            "is_fallback": row.is_fallback,
+            "timestamp": row.created_at.isoformat() if row.created_at else None,
+            "risk_json": row.risk_json,
+            "route_json": row.route_json,
+        }
 
 
 async def get_db_status() -> dict:
-    async with aiosqlite.connect(settings.db_path) as db:
-        async with db.execute("SELECT COUNT(*) FROM alerts") as cursor:
-            total = (await cursor.fetchone())[0]
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM alerts ORDER BY timestamp DESC LIMIT 1"
-        ) as cursor:
-            row = await cursor.fetchone()
-    return {"total_alerts": total, "latest": dict(row) if row else None}
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(select(func.count()).select_from(AlertDB))
+        total = result.scalar_one()
+        latest = await get_latest_alert()
+    return {"total_alerts": total, "latest": latest}
 
 
 async def get_alert_locations(limit: int = 50) -> list[dict]:
-    """最新N件のアラートの震源地位置情報を取得（マップ表示用）。"""
-    async with aiosqlite.connect(settings.db_path) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT event_id, severity, timestamp, route_json FROM alerts ORDER BY timestamp DESC LIMIT ?",
-            (limit,),
-        ) as cursor:
-            rows = await cursor.fetchall()
+    factory = get_session_factory()
+    async with factory() as session:
+        result = await session.execute(
+            select(AlertDB).order_by(AlertDB.created_at.desc()).limit(limit)
+        )
+        rows = result.scalars().all()
 
-    result = []
+    locations = []
     for row in rows:
-        if not row["route_json"]:
+        route = row.route_json
+        if not route:
             continue
-        try:
-            route = json.loads(row["route_json"])
-            lat = route.get("latitude")
-            lon = route.get("longitude")
-            if lat is None or lon is None:
-                continue
-            result.append({
-                "event_id": row["event_id"],
-                "severity": row["severity"],
-                "timestamp": str(row["timestamp"]),
-                "latitude": lat,
-                "longitude": lon,
-                "danger_radius_km": route.get("danger_radius_km"),
-            })
-        except Exception as e:
-            logger.warning("[DB] route_json のパース失敗 event_id=%s: %s", row["event_id"], e)
+        lat = route.get("latitude") if isinstance(route, dict) else None
+        lon = route.get("longitude") if isinstance(route, dict) else None
+        if lat is None or lon is None:
             continue
-    return result
+        locations.append({
+            "event_id": row.event_id,
+            "severity": row.severity,
+            "timestamp": row.created_at.isoformat() if row.created_at else None,
+            "latitude": lat,
+            "longitude": lon,
+            "danger_radius_km": route.get("danger_radius_km"),
+        })
+    return locations
 
 
 async def get_alerts(limit: int = 20, offset: int = 0) -> tuple[list[dict], int]:
-    """アラート履歴を新しい順で取得。(alerts, total) を返す。"""
-    async with aiosqlite.connect(settings.db_path) as db:
-        async with db.execute("SELECT COUNT(*) FROM alerts") as cursor:
-            total = (await cursor.fetchone())[0]
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT * FROM alerts ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-            (limit, offset),
-        ) as cursor:
-            rows = await cursor.fetchall()
-    return [dict(r) for r in rows], total
+    factory = get_session_factory()
+    async with factory() as session:
+        total_result = await session.execute(select(func.count()).select_from(AlertDB))
+        total = total_result.scalar_one()
+        result = await session.execute(
+            select(AlertDB).order_by(AlertDB.created_at.desc()).limit(limit).offset(offset)
+        )
+        rows = result.scalars().all()
+    return [
+        {
+            "event_id": r.event_id,
+            "severity": r.severity,
+            "ja_text": r.ja_text,
+            "en_text": r.en_text,
+            "is_fallback": r.is_fallback,
+            "timestamp": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ], total
