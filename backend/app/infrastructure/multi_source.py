@@ -69,4 +69,12 @@ async def fetch_all_sources(limit: int = 20) -> list[EarthquakeEvent]:
 
     deduped = _deduplicate(all_events)
     logger.info("[MultiSource] 統合 %d 件（重複除去前: %d 件）", len(deduped), len(all_events))
+
+    # 全イベントを earthquake_events テーブルに保存
+    try:
+        from app.usecases.event_store import save_events
+        await save_events(deduped)
+    except Exception as e:
+        logger.error("[MultiSource] イベント保存失敗: %s", e)
+
     return deduped

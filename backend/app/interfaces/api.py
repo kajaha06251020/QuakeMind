@@ -32,6 +32,13 @@ async def require_api_key(key: str = Security(_api_key_header)) -> str:
 
 
 async def _process_event(event) -> None:
+    # earthquake_events に保存（WS モードでも漏れないようここで保存）
+    try:
+        from app.usecases.event_store import save_events
+        await save_events([event])
+    except Exception as e:
+        logger.warning("[Monitor] イベント保存失敗: %s", e)
+
     initial_state = {
         "event_id": event.event_id,
         "magnitude": event.magnitude,
