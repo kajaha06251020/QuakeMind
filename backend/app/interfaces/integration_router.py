@@ -113,3 +113,39 @@ async def nearest_scenario(
 ):
     from app.services.scenario_db import find_nearest_scenario
     return find_nearest_scenario(lat, lon, magnitude)
+
+
+@router.get("/induced-seismicity")
+async def induced(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.induced_seismicity import classify_induced
+    records = await _get_records(region, start, end)
+    return classify_induced(records)
+
+
+@router.get("/fault-healing")
+async def fault_healing(fault_name: Optional[str] = None):
+    from app.usecases.fault_healing import estimate_healing_rate
+    return estimate_healing_rate(fault_name)
+
+
+@router.post("/climate-correlation")
+async def climate_corr(data: dict):
+    from app.usecases.climate_seismicity import analyze_climate_earthquake_correlation
+    import numpy as np
+    return analyze_climate_earthquake_correlation(
+        np.array(data.get("earthquake_counts", [])),
+        sea_level_mm=np.array(data["sea_level_mm"]) if "sea_level_mm" in data else None,
+        temperature_anomaly_c=np.array(data["temperature_c"]) if "temperature_c" in data else None,
+    )
+
+
+@router.get("/multi-hazard-cascade")
+async def cascade_sim(lat: float = Query(...), lon: float = Query(...), magnitude: float = Query(...), depth_km: float = Query(default=15)):
+    from app.usecases.multi_hazard_cascade import simulate_cascade
+    return simulate_cascade(magnitude, depth_km, lat, lon)
+
+
+@router.get("/communicate-risk")
+async def communicate(probability: float = Query(...), audience: str = Query(default="general"), timeframe: str = Query(default="7日間")):
+    from app.services.uncertainty_communicator import communicate_risk
+    return communicate_risk(probability, audience=audience, timeframe=timeframe)
