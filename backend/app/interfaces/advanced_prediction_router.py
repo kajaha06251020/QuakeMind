@@ -169,3 +169,46 @@ async def tectonic_classify(
     from app.usecases.tectonic_classifier import classify_events
     records = await _get_records(region, start, end)
     return classify_events(records)
+
+
+@router.get("/hazard-map")
+async def hazard_map(
+    region: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+):
+    from app.usecases.hazard_map import compute_hazard_map
+    records = await _get_records(region, start, end)
+    return compute_hazard_map(records)
+
+
+@router.get("/sequence-classification")
+async def sequence_classify(
+    region: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+):
+    from app.usecases.sequence_classifier import classify_sequence
+    records = await _get_records(region, start, end)
+    return classify_sequence(records)
+
+
+@router.get("/paper-survey")
+async def paper_survey(query: str = Query(default="earthquake prediction")):
+    from app.services.paper_survey import search_arxiv_papers
+    return {"papers": await search_arxiv_papers(query, max_results=5)}
+
+
+@router.post("/generate-notebook")
+async def generate_notebook(region: Optional[str] = None):
+    from app.services.notebook_generator import generate_daily_notebook
+    from app.services.research_scheduler import daily_analysis
+    from fastapi.responses import PlainTextResponse
+
+    analyses = {}
+    try:
+        analyses = await daily_analysis()
+    except Exception:
+        pass
+    md = generate_daily_notebook(analyses)
+    return PlainTextResponse(content=md, media_type="text/markdown")
