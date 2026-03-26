@@ -134,6 +134,9 @@ app.add_middleware(
 
 app.include_router(analysis_router)
 
+from app.interfaces.statistics_router import router as statistics_router
+app.include_router(statistics_router)
+
 
 @app.get("/status")
 async def get_status():
