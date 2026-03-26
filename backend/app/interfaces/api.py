@@ -155,6 +155,36 @@ app.include_router(data_quality_router)
 from app.interfaces.supplementary_router import router as supplementary_router
 app.include_router(supplementary_router)
 
+from fastapi import APIRouter
+
+# v1 versioned router — groups all existing routers under /v1 prefix
+v1_router = APIRouter(prefix="/v1")
+v1_router.include_router(analysis_router)
+v1_router.include_router(statistics_router)
+v1_router.include_router(advanced_analysis_router)
+v1_router.include_router(prediction_router)
+v1_router.include_router(realtime_router)
+v1_router.include_router(research_router)
+v1_router.include_router(data_quality_router)
+v1_router.include_router(supplementary_router)
+
+# Register versioned router (existing root-level routers kept for backward compat)
+app.include_router(v1_router)
+
+from app.services.auth import create_access_token
+
+
+class TokenRequest(BaseModel):
+    api_key: str
+
+
+@app.post("/auth/token")
+async def get_token(body: TokenRequest):
+    if body.api_key != settings.api_key:
+        raise HTTPException(status_code=403, detail="Invalid API key")
+    token = create_access_token({"sub": "default", "type": "access"})
+    return {"access_token": token, "token_type": "bearer"}
+
 
 @app.get("/status")
 async def get_status():

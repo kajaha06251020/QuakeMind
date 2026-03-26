@@ -60,6 +60,38 @@ class Settings(BaseSettings):
     poseidon_dataset_name: str = "JoshuaCarterResearch/POSEIDON"
     poseidon_sample_limit: int = 10000  # 日本周辺からサンプリングする最大件数
 
+    # EMSC (European-Mediterranean Seismological Centre)
+    emsc_enabled: bool = True
+    emsc_api_url: str = "https://www.seismicportal.eu/fdsnws/event/1/query"
+
+    # IRIS FDSN (Incorporated Research Institutions for Seismology)
+    iris_enabled: bool = True
+    iris_api_url: str = "https://service.iris.edu/fdsnws/event/1/query"
+
+    # GeoNet (New Zealand)
+    geonet_enabled: bool = True
+    geonet_api_url: str = "https://api.geonet.org.nz/quake"
+
+    # INGV (Italy)
+    ingv_enabled: bool = True
+    ingv_api_url: str = "https://webservices.ingv.it/fdsnws/event/1/query"
+
+    # GDACS (Global Disaster Alerts)
+    gdacs_enabled: bool = True
+    gdacs_rss_url: str = "https://www.gdacs.org/xml/rss_eq.xml"
+
+    # 気象庁リアルタイム震度
+    jma_intensity_enabled: bool = True
+    jma_intensity_url: str = "https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml"
+
+    # 津波観測リアルタイム
+    tsunami_obs_enabled: bool = True
+    tsunami_obs_url: str = "https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml"
+
+    # 構造化ログ
+    log_format: str = "json"  # "json" | "text"
+    log_level: str = "INFO"
+
     # LLMプロバイダー
     llm_provider: str = "local"          # "local" | "claude"
     local_llm_base_url: str = "http://127.0.0.1:8081"
