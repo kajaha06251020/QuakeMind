@@ -17,3 +17,7 @@ pytest-asyncio>=0.23.0
 lxml>=5.0.0
 datasets>=2.0.0
 pytest-httpx>=0.30.0
+sqlalchemy[asyncio]>=2.0.0
+asyncpg>=0.29.0
+alembic>=1.13.0
+greenlet>=3.0.0

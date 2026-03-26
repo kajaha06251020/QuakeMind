@@ -30,12 +30,13 @@ class Settings(BaseSettings):
     # 地震検知閾値
     magnitude_threshold: float = 4.0
 
-    # SQLite 永続化
-    db_path: str = "quakemind.db"
-
     # 状態エビクション
     max_events: int = 100
     max_seen_ids: int = 10000
+
+    # データベース
+    database_url: str = "postgresql+asyncpg://quakemind:quakemind_dev@localhost:5432/quakemind"
+    database_url_test: str = "sqlite+aiosqlite://"
 
     # Webhook 通知
     webhook_urls: list[str] = []
