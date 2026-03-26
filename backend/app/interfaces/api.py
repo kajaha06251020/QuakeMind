@@ -101,6 +101,8 @@ async def ws_monitor_loop() -> None:
 async def lifespan(app: FastAPI):
     configure_langsmith()
     await db.init_db()
+    from app.services.health import set_started_at
+    set_started_at()
     if settings.p2p_ws_url:
         task = asyncio.create_task(ws_monitor_loop())
     else:
@@ -303,3 +305,9 @@ async def update_settings(body: SettingsUpdate):
         region_filters=body.region_filters,
         notification_channels=body.notification_channels,
     )
+
+
+@app.get("/health")
+async def health_check():
+    from app.services.health import check_health
+    return await check_health()
