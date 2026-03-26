@@ -7,6 +7,7 @@ from app.services.power_outage import get_power_outage_urls
 from app.services.gnss_monitor import get_gnss_stations, analyze_displacement
 from app.services.geomagnetic_monitor import get_geomagnetic_info, analyze_geomagnetic
 from app.services.traffic_info import get_traffic_info_urls, estimate_road_impact
+from app.infrastructure import db
 
 router = APIRouter(prefix="/supplementary", tags=["supplementary-data"])
 
@@ -54,3 +55,42 @@ async def traffic_info(region: Optional[str] = None):
 @router.get("/road-impact")
 async def road_impact(intensity: float = Query(..., ge=0, le=7)):
     return estimate_road_impact(intensity)
+
+
+from fastapi.responses import PlainTextResponse
+from app.services.data_export import export_csv, export_geojson, export_kml
+
+
+@router.get("/export/csv")
+async def export_events_csv(
+    region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None,
+):
+    from datetime import datetime as dt
+    start_dt = dt.fromisoformat(start) if start else None
+    end_dt = dt.fromisoformat(end) if end else None
+    records = await db.get_events_as_records(region=region, start=start_dt, end=end_dt)
+    return PlainTextResponse(content=export_csv(records), media_type="text/csv",
+                             headers={"Content-Disposition": "attachment; filename=quakemind_events.csv"})
+
+
+@router.get("/export/geojson")
+async def export_events_geojson(
+    region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None,
+):
+    from datetime import datetime as dt
+    start_dt = dt.fromisoformat(start) if start else None
+    end_dt = dt.fromisoformat(end) if end else None
+    records = await db.get_events_as_records(region=region, start=start_dt, end=end_dt)
+    return export_geojson(records)
+
+
+@router.get("/export/kml")
+async def export_events_kml(
+    region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None,
+):
+    from datetime import datetime as dt
+    start_dt = dt.fromisoformat(start) if start else None
+    end_dt = dt.fromisoformat(end) if end else None
+    records = await db.get_events_as_records(region=region, start=start_dt, end=end_dt)
+    return PlainTextResponse(content=export_kml(records), media_type="application/vnd.google-earth.kml+xml",
+                             headers={"Content-Disposition": "attachment; filename=quakemind_events.kml"})
