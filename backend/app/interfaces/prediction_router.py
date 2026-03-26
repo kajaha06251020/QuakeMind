@@ -85,3 +85,12 @@ async def get_timeseries_forecast(
 ):
     records = await _get_records(region=region, start=start, end=end)
     return forecast_daily_counts(records, forecast_days=forecast_days)
+
+
+@router.get("/etas-parameters")
+async def get_etas_parameters(
+    region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None,
+):
+    from app.usecases.etas_mle import estimate_etas_parameters
+    records = await _get_records(region=region, start=start, end=end)
+    return estimate_etas_parameters(records)

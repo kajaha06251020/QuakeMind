@@ -204,6 +204,19 @@ async def get_status():
     }
 
 
+@app.get("/metrics")
+async def prometheus_metrics():
+    from app.services.metrics import get_metrics, get_content_type
+    from fastapi.responses import Response
+    return Response(content=get_metrics(), media_type=get_content_type())
+
+
+@app.get("/pipeline-status")
+async def pipeline_status():
+    from app.services.pipeline_monitor import check_pipeline_health
+    return check_pipeline_health()
+
+
 @app.get("/alert/latest")
 async def get_latest_alert():
     row = await db.get_latest_alert()
