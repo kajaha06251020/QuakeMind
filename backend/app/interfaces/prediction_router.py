@@ -10,6 +10,9 @@ from app.usecases.coulomb import compute_coulomb_stress
 from app.usecases.foreshock_matcher import match_foreshock_pattern
 from app.usecases.chain_probability import compute_chain_probability
 from app.usecases.timeseries_forecast import forecast_daily_counts
+from app.usecases.ml_predictor import predict_large_earthquake
+from app.usecases.focal_mechanism import classify_fault_type, estimate_rupture_area
+from app.usecases.risk_profile import compute_risk_profile
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/prediction", tags=["prediction"])
@@ -94,3 +97,32 @@ async def get_etas_parameters(
     from app.usecases.etas_mle import estimate_etas_parameters
     records = await _get_records(region=region, start=start, end=end)
     return estimate_etas_parameters(records)
+
+
+@router.get("/ml-predict")
+async def ml_predict(
+    region: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    magnitude_threshold: float = Query(default=5.0),
+):
+    records = await _get_records(region=region, start=start, end=end)
+    return predict_large_earthquake(records, magnitude_threshold)
+
+
+@router.get("/focal-mechanism")
+async def focal_mechanism(
+    magnitude: float = Query(...),
+    rake: float = Query(default=0),
+):
+    return {"fault_type": classify_fault_type(rake), "rupture": estimate_rupture_area(magnitude)}
+
+
+@router.get("/risk-profile")
+async def risk_profile(
+    region: str = Query(...),
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+):
+    records = await _get_records(region=region, start=start, end=end)
+    return compute_risk_profile(region, records)

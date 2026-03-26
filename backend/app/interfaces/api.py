@@ -375,3 +375,9 @@ async def update_settings(body: SettingsUpdate):
 async def health_check():
     from app.services.health import check_health
     return await check_health()
+
+
+@app.post("/webhook/inbound")
+async def inbound_webhook(payload: dict):
+    from app.services.inbound_webhook import process_inbound_event
+    return await process_inbound_event(payload)
