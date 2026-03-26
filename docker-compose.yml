@@ -5,8 +5,8 @@ services:
       - "8000:8000"
     env_file:
       - ./backend/.env
-    volumes:
-      - backend_data:/app/data
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://quakemind:quakemind_dev@db:5432/quakemind
     depends_on:
       db:
         condition: service_healthy
@@ -41,4 +41,3 @@ services:
 
 volumes:
   postgres_data:
-  backend_data:
