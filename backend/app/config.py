@@ -88,6 +88,10 @@ class Settings(BaseSettings):
     tsunami_obs_enabled: bool = True
     tsunami_obs_url: str = "https://www.data.jma.go.jp/developer/xml/feed/eqvol.xml"
 
+    # メール配信
+    sendgrid_api_key: str = ""
+    briefing_email_to: str = ""
+
     # 構造化ログ
     log_format: str = "json"  # "json" | "text"
     log_level: str = "INFO"

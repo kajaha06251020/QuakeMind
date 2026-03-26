@@ -381,3 +381,9 @@ async def health_check():
 async def inbound_webhook(payload: dict):
     from app.services.inbound_webhook import process_inbound_event
     return await process_inbound_event(payload)
+
+
+@app.get("/jobs")
+async def job_status():
+    from app.services.job_manager import job_manager
+    return job_manager.get_status()
