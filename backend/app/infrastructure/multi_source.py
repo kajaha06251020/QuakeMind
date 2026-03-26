@@ -5,7 +5,7 @@ P2P, USGS, JMA XML の各クライアントを並列呼び出しし、
 """
 import asyncio
 import logging
-from datetime import timezone
+from datetime import datetime, timezone
 
 from app.domain.models import EarthquakeEvent
 from app.infrastructure.jma_client import fetch_recent_events as p2p_fetch
@@ -13,6 +13,15 @@ from app.infrastructure.usgs_client import fetch_recent_events as usgs_fetch
 from app.infrastructure.jma_xml_client import fetch_recent_events as jma_xml_fetch
 
 logger = logging.getLogger(__name__)
+
+# データソースの最終取得ステータス
+_source_status: dict[str, dict] = {}
+
+
+def get_source_status() -> dict[str, dict]:
+    """各データソースの最終取得ステータスを返す。"""
+    return _source_status.copy()
+
 
 # 重複判定しきい値
 _LAT_THRESHOLD = 0.5      # 度
@@ -60,12 +69,21 @@ async def fetch_all_sources(limit: int = 20) -> list[EarthquakeEvent]:
 
     all_events: list[EarthquakeEvent] = []
     source_names = ["p2p", "usgs", "jma_xml"]
+    now = datetime.now(timezone.utc)
     for name, result in zip(source_names, results):
         if isinstance(result, Exception):
             logger.error("[MultiSource] %s エラー: %s", name, result)
+            _source_status[name] = {
+                "last_fetch_at": now.isoformat(),
+                "last_error": str(result),
+            }
         else:
             all_events.extend(result)
             logger.debug("[MultiSource] %s: %d 件", name, len(result))
+            _source_status[name] = {
+                "last_fetch_at": now.isoformat(),
+                "last_error": None,
+            }
 
     deduped = _deduplicate(all_events)
     logger.info("[MultiSource] 統合 %d 件（重複除去前: %d 件）", len(deduped), len(all_events))
