@@ -486,3 +486,69 @@ async def lyapunov(data: dict):
 async def deep_eq(depth_km: float = Query(...), magnitude: float = Query(...)):
     from app.usecases.deep_earthquake import classify_deep_mechanism
     return classify_deep_mechanism(depth_km, magnitude)
+
+
+@router.get("/site-amplification")
+async def site_amp(base_intensity: float = Query(...), vs30: float = Query(default=180)):
+    from app.usecases.site_amplification import compute_site_amplification
+    return compute_site_amplification(base_intensity, vs30)
+
+
+@router.get("/multi-gmpe")
+async def multi_gmpe(magnitude: float = Query(...), distance_km: float = Query(...), depth_km: float = Query(default=10)):
+    from app.usecases.multi_gmpe import evaluate_multi_gmpe
+    return evaluate_multi_gmpe(magnitude, distance_km, depth_km)
+
+
+@router.get("/spatial-bvalue")
+async def spatial_bval(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.spatial_bvalue import compute_spatial_bvalue
+    records = await _get_records(region, start, end)
+    return compute_spatial_bvalue(records)
+
+
+@router.get("/moment-rate")
+async def moment_rate(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.moment_rate import compute_moment_rate
+    records = await _get_records(region, start, end)
+    return compute_moment_rate(records)
+
+
+@router.get("/magnitude-convert")
+async def mag_convert(magnitude: float = Query(...), scale: str = Query(default="ML")):
+    from app.usecases.magnitude_conversion import convert_to_mw
+    return convert_to_mw(magnitude, scale)
+
+
+@router.get("/repeating-earthquakes")
+async def repeaters(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.repeating_earthquakes import detect_repeaters
+    records = await _get_records(region, start, end)
+    return detect_repeaters(records)
+
+
+@router.get("/doublets")
+async def doublets(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.doublet_detection import detect_doublets
+    records = await _get_records(region, start, end)
+    return detect_doublets(records)
+
+
+@router.get("/interevent-time")
+async def interevent(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.interevent_time import analyze_interevent_times
+    records = await _get_records(region, start, end)
+    return analyze_interevent_times(records)
+
+
+@router.post("/csep-comparison")
+async def csep(predictions: list[dict]):
+    from app.usecases.model_comparison import csep_comparison
+    return csep_comparison(predictions)
+
+
+@router.get("/aftershock-hazard")
+async def aftershock_haz(lat: float = Query(...), lon: float = Query(...), region: Optional[str] = None, hours: int = Query(default=72)):
+    from app.usecases.aftershock_hazard import compute_aftershock_hazard
+    records = await _get_records(region=region)
+    return compute_aftershock_hazard(records, lat, lon, hours)
