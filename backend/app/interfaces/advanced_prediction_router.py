@@ -552,3 +552,68 @@ async def aftershock_haz(lat: float = Query(...), lon: float = Query(...), regio
     from app.usecases.aftershock_hazard import compute_aftershock_hazard
     records = await _get_records(region=region)
     return compute_aftershock_hazard(records, lat, lon, hours)
+
+
+@router.get("/tsunami-simulation")
+async def tsunami_sim(lat: float = Query(...), lon: float = Query(...), magnitude: float = Query(...), depth_km: float = Query(default=15)):
+    from app.usecases.tsunami_simulation import simulate_tsunami_propagation
+    return simulate_tsunami_propagation(lat, lon, magnitude, depth_km, grid_size=30, total_minutes=30)
+
+
+@router.get("/early-warning")
+async def eew(p_amplitude: float = Query(...), p_period: float = Query(...), distance_km: float = Query(default=100)):
+    from app.usecases.early_warning import estimate_from_p_wave
+    return estimate_from_p_wave(p_amplitude, p_period, distance_km)
+
+
+@router.get("/stress-drop")
+async def stress_drop_endpoint(magnitude: float = Query(...)):
+    from app.usecases.stress_drop import estimate_stress_drop
+    return estimate_stress_drop(magnitude)
+
+
+@router.get("/tidal-triggering")
+async def tidal(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.tidal_triggering import schuster_test
+    records = await _get_records(region, start, end)
+    return schuster_test(records)
+
+
+@router.get("/mc-map")
+async def mc_map(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.mc_mapping import compute_mc_map
+    records = await _get_records(region, start, end)
+    return compute_mc_map(records)
+
+
+@router.get("/nowcast")
+async def nowcast_endpoint(region: Optional[str] = None):
+    from app.usecases.nowcasting import nowcast
+    records = await _get_records(region=region)
+    return nowcast(records)
+
+
+@router.get("/energy-partition")
+async def energy(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.energy_partition import analyze_energy_partition
+    records = await _get_records(region, start, end)
+    return analyze_energy_partition([r.magnitude for r in records])
+
+
+@router.get("/source-spectrum")
+async def spectrum(magnitude: float = Query(...)):
+    from app.usecases.source_spectrum import fit_brune_spectrum
+    return fit_brune_spectrum(magnitude)
+
+
+@router.get("/volcano-seismic")
+async def volcano(region: Optional[str] = None):
+    from app.usecases.volcano_seismic import analyze_volcano_seismic
+    records = await _get_records(region=region)
+    return analyze_volcano_seismic(records)
+
+
+@router.get("/ambient-noise")
+async def ambient():
+    from app.usecases.ambient_noise import detect_velocity_change
+    return detect_velocity_change()
