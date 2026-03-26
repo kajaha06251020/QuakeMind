@@ -319,3 +319,30 @@ async def research_strategy(region: Optional[str] = None):
     gaps = detect_knowledge_gaps(records)
     scoreboard = get_scoreboard()
     return recommend_research_strategy(gaps, model_scoreboard=scoreboard)
+
+
+@router.get("/stress-tomography")
+async def stress_tomography(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.stress_tomography import compute_3d_stress_field
+    records = await _get_records(region, start, end)
+    return compute_3d_stress_field(records, grid_spacing_deg=1.0, depth_layers=[15, 30, 50])
+
+
+@router.get("/rupture-simulation")
+async def rupture_sim(segment_id: str = Query(...), magnitude: float = Query(default=8.0), n_simulations: int = Query(default=500)):
+    from app.usecases.rupture_propagation import simulate_rupture
+    return simulate_rupture(segment_id, magnitude, n_simulations)
+
+
+@router.get("/multiscale-analysis")
+async def multiscale(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.multiscale import multiscale_analysis
+    records = await _get_records(region, start, end)
+    return multiscale_analysis(records)
+
+
+@router.get("/criticality-index")
+async def criticality(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.criticality import compute_criticality_index
+    records = await _get_records(region, start, end)
+    return compute_criticality_index(records)
