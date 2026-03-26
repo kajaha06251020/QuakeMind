@@ -214,6 +214,48 @@ async def generate_notebook(region: Optional[str] = None):
     return PlainTextResponse(content=md, media_type="text/markdown")
 
 
+@router.get("/precursor-fusion")
+async def precursor_fusion(signals: str = Query(default="{}")):
+    from app.usecases.precursor_fusion import compute_precursor_score
+    import json
+    return compute_precursor_score(json.loads(signals))
+
+
+@router.get("/information-theory")
+async def info_theory(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.information_theory import analyze_parameter_dependencies
+    import numpy as np
+    records = await _get_records(region, start, end)
+    if len(records) < 10:
+        return {"error": "イベント数不足"}
+    mags = np.array([r.magnitude for r in records])
+    depths = np.array([r.depth_km for r in records])
+    lats = np.array([r.latitude for r in records])
+    lons = np.array([r.longitude for r in records])
+    return analyze_parameter_dependencies(mags, depths, lats, lons)
+
+
+@router.get("/seismic-gaps")
+async def seismic_gaps(region: Optional[str] = None):
+    from app.usecases.seismic_gap import analyze_seismic_gaps
+    records = await _get_records(region=region)
+    return analyze_seismic_gaps(records)
+
+
+@router.get("/stress-history")
+async def stress_history(lat: float = Query(...), lon: float = Query(...), region: Optional[str] = None):
+    from app.usecases.stress_history import compute_cumulative_stress
+    records = await _get_records(region=region)
+    return compute_cumulative_stress(records, lat, lon)
+
+
+@router.get("/topological-analysis")
+async def topo_analysis(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.tda import compute_persistence
+    records = await _get_records(region, start, end)
+    return compute_persistence(records)
+
+
 @router.post("/generate-hypotheses")
 async def gen_hypotheses(analysis_results: dict):
     from app.services.llm_hypothesis import generate_hypotheses_from_analysis
