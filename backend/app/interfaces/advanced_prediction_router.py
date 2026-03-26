@@ -453,3 +453,36 @@ async def optimal_obs(region: Optional[str] = None, n: int = Query(default=3, ge
     from app.usecases.optimal_observation import recommend_observation_sites
     records = await _get_records(region=region)
     return recommend_observation_sites(records, n)
+
+
+@router.get("/rupture-arrest")
+async def rupture_arrest(length_km: float = Query(default=100), width_km: float = Query(default=30), heterogeneity: float = Query(default=0.3), n_sims: int = Query(default=200)):
+    from app.usecases.rupture_arrest import simulate_rupture_arrest
+    return simulate_rupture_arrest(length_km, width_km, n_simulations=n_sims, heterogeneity=heterogeneity)
+
+@router.get("/slow-slip")
+async def slow_slip(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.slow_slip import detect_slow_slip_correlation
+    records = await _get_records(region, start, end)
+    return detect_slow_slip_correlation(records)
+
+@router.post("/fluid-correlation")
+async def fluid_corr(data: dict):
+    from app.usecases.fluid_correlation import correlate_fluid_signals
+    import numpy as np
+    eq = np.array(data.get("earthquake_counts", []))
+    rain = np.array(data["precipitation_mm"]) if "precipitation_mm" in data else None
+    tidal = np.array(data["tidal_force"]) if "tidal_force" in data else None
+    return correlate_fluid_signals(eq, precipitation_mm=rain, tidal_force=tidal)
+
+@router.post("/lyapunov")
+async def lyapunov(data: dict):
+    from app.usecases.lyapunov import estimate_lyapunov
+    import numpy as np
+    ts = np.array(data.get("timeseries", []))
+    return estimate_lyapunov(ts, embedding_dim=data.get("embedding_dim", 3))
+
+@router.get("/deep-earthquake-mechanism")
+async def deep_eq(depth_km: float = Query(...), magnitude: float = Query(...)):
+    from app.usecases.deep_earthquake import classify_deep_mechanism
+    return classify_deep_mechanism(depth_km, magnitude)
