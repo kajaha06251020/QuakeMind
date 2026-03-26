@@ -143,6 +143,9 @@ app.include_router(advanced_analysis_router)
 from app.interfaces.prediction_router import router as prediction_router
 app.include_router(prediction_router)
 
+from app.interfaces.realtime_router import router as realtime_router
+app.include_router(realtime_router)
+
 
 @app.get("/status")
 async def get_status():
