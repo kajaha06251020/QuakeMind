@@ -161,6 +161,9 @@ app.include_router(research_dashboard_router)
 from app.interfaces.advanced_prediction_router import router as advanced_prediction_router
 app.include_router(advanced_prediction_router)
 
+from app.interfaces.integration_router import router as integration_router
+app.include_router(integration_router)
+
 from fastapi import APIRouter
 
 # v1 versioned router — groups all existing routers under /v1 prefix
@@ -175,6 +178,7 @@ v1_router.include_router(data_quality_router)
 v1_router.include_router(supplementary_router)
 v1_router.include_router(research_dashboard_router)
 v1_router.include_router(advanced_prediction_router)
+v1_router.include_router(integration_router)
 
 # Register versioned router (existing root-level routers kept for backward compat)
 app.include_router(v1_router)
