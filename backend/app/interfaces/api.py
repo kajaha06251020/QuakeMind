@@ -152,6 +152,9 @@ app.include_router(research_router)
 from app.interfaces.data_quality_router import router as data_quality_router
 app.include_router(data_quality_router)
 
+from app.interfaces.supplementary_router import router as supplementary_router
+app.include_router(supplementary_router)
+
 
 @app.get("/status")
 async def get_status():
