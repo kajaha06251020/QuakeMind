@@ -76,3 +76,43 @@ async def oef_forecast(
     from app.usecases.oef import generate_oef_forecast
     records = await _get_records(region, start, end)
     return await generate_oef_forecast(records, magnitude_threshold=magnitude_threshold)
+
+
+@router.get("/fault-interactions")
+async def fault_interactions(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.fault_graph import analyze_fault_interactions
+    records = await _get_records(region, start, end)
+    return analyze_fault_interactions(records)
+
+
+@router.post("/analyze-waveform")
+async def analyze_waveform_endpoint(data: dict):
+    from app.usecases.phase_detection import analyze_waveform
+    import numpy as np
+    waveform = np.array(data.get("waveform", []))
+    sr = data.get("sampling_rate", 100.0)
+    if len(waveform) < 100:
+        return {"error": "波形データが短すぎます（最低100サンプル）"}
+    return analyze_waveform(waveform, sr)
+
+
+@router.get("/self-improvement")
+async def self_improvement_status():
+    from app.services.self_improvement import get_improvement_summary
+    return get_improvement_summary()
+
+
+@router.post("/self-improvement/verify")
+async def self_improvement_verify(model_name: str, predicted_prob: float, actual_occurred: bool):
+    from app.services.self_improvement import verify_and_update
+    return await verify_and_update(model_name, predicted_prob, actual_occurred)
+
+
+@router.get("/domain-similarity")
+async def domain_similarity(region: Optional[str] = None):
+    from app.usecases.transfer_learning import extract_transfer_features, compute_domain_similarity
+    all_records = await _get_records()
+    region_records = await _get_records(region=region) if region else all_records
+    source = extract_transfer_features(all_records)
+    target = extract_transfer_features(region_records)
+    return compute_domain_similarity(source, target)
