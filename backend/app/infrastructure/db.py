@@ -196,6 +196,43 @@ async def get_events(
     ], total
 
 
+async def get_events_as_records(
+    region: str | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+    min_magnitude: float | None = None,
+) -> list:
+    """earthquake_events から EarthquakeRecord 形式のリストを返す。"""
+    from app.domain.seismology import EarthquakeRecord
+
+    factory = get_session_factory()
+    async with factory() as session:
+        query = select(EarthquakeEventDB)
+        if region is not None:
+            query = query.where(EarthquakeEventDB.region == region)
+        if start is not None:
+            query = query.where(EarthquakeEventDB.occurred_at >= start)
+        if end is not None:
+            query = query.where(EarthquakeEventDB.occurred_at <= end)
+        if min_magnitude is not None:
+            query = query.where(EarthquakeEventDB.magnitude >= min_magnitude)
+        query = query.order_by(EarthquakeEventDB.occurred_at.asc())
+        result = await session.execute(query)
+        rows = result.scalars().all()
+
+    return [
+        EarthquakeRecord(
+            event_id=r.event_id,
+            magnitude=r.magnitude,
+            latitude=r.latitude,
+            longitude=r.longitude,
+            depth_km=r.depth_km,
+            timestamp=r.occurred_at.isoformat() if r.occurred_at else "",
+        )
+        for r in rows
+    ]
+
+
 async def get_user_settings(user_id: str = "default") -> dict:
     """ユーザー設定を取得する。存在しなければデフォルトで自動作成。"""
     factory = get_session_factory()
