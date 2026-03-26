@@ -194,6 +194,26 @@ async def get_alerts(limit: int = Query(default=20, ge=1, le=100), offset: int =
     }
 
 
+@app.get("/events")
+async def get_events(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    min_magnitude: Optional[float] = None,
+    region: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+):
+    from datetime import datetime as dt
+    start_dt = dt.fromisoformat(start) if start else None
+    end_dt = dt.fromisoformat(end) if end else None
+    events, total = await db.get_events(
+        limit=limit, offset=offset,
+        min_magnitude=min_magnitude, region=region,
+        start=start_dt, end=end_dt,
+    )
+    return {"events": events, "total": total, "limit": limit, "offset": offset}
+
+
 @app.get("/events/stream")
 async def stream_events(request: Request):
     """SSE: 新アラートが発生するたびにデータをプッシュする。"""

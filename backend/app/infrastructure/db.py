@@ -145,3 +145,52 @@ async def get_alerts(limit: int = 20, offset: int = 0) -> tuple[list[dict], int]
         }
         for r in rows
     ], total
+
+
+async def get_events(
+    limit: int = 50,
+    offset: int = 0,
+    min_magnitude: float | None = None,
+    region: str | None = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> tuple[list[dict], int]:
+    """イベント履歴を検索する。(events, total) を返す。"""
+    factory = get_session_factory()
+    async with factory() as session:
+        query = select(EarthquakeEventDB)
+        count_query = select(func.count()).select_from(EarthquakeEventDB)
+
+        if min_magnitude is not None:
+            query = query.where(EarthquakeEventDB.magnitude >= min_magnitude)
+            count_query = count_query.where(EarthquakeEventDB.magnitude >= min_magnitude)
+        if region is not None:
+            query = query.where(EarthquakeEventDB.region == region)
+            count_query = count_query.where(EarthquakeEventDB.region == region)
+        if start is not None:
+            query = query.where(EarthquakeEventDB.occurred_at >= start)
+            count_query = count_query.where(EarthquakeEventDB.occurred_at >= start)
+        if end is not None:
+            query = query.where(EarthquakeEventDB.occurred_at <= end)
+            count_query = count_query.where(EarthquakeEventDB.occurred_at <= end)
+
+        total_result = await session.execute(count_query)
+        total = total_result.scalar_one()
+
+        query = query.order_by(EarthquakeEventDB.occurred_at.desc()).limit(limit).offset(offset)
+        result = await session.execute(query)
+        rows = result.scalars().all()
+
+    return [
+        {
+            "event_id": r.event_id,
+            "source": r.source,
+            "magnitude": r.magnitude,
+            "depth_km": r.depth_km,
+            "latitude": r.latitude,
+            "longitude": r.longitude,
+            "region": r.region,
+            "occurred_at": r.occurred_at.isoformat() if r.occurred_at else None,
+        }
+        for r in rows
+    ], total
