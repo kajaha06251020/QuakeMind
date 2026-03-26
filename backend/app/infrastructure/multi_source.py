@@ -11,6 +11,13 @@ from app.domain.models import EarthquakeEvent
 from app.infrastructure.jma_client import fetch_recent_events as p2p_fetch
 from app.infrastructure.usgs_client import fetch_recent_events as usgs_fetch
 from app.infrastructure.jma_xml_client import fetch_recent_events as jma_xml_fetch
+from app.infrastructure.emsc_client import fetch_recent_events as emsc_fetch
+from app.infrastructure.iris_client import fetch_recent_events as iris_fetch
+from app.infrastructure.geonet_client import fetch_recent_events as geonet_fetch
+from app.infrastructure.ingv_client import fetch_recent_events as ingv_fetch
+from app.infrastructure.gdacs_client import fetch_recent_events as gdacs_fetch
+from app.infrastructure.jma_intensity_client import fetch_recent_events as jma_intensity_fetch
+from app.infrastructure.tsunami_obs_client import fetch_recent_events as tsunami_obs_fetch
 
 logger = logging.getLogger(__name__)
 
@@ -57,18 +64,25 @@ def _deduplicate(events: list[EarthquakeEvent]) -> list[EarthquakeEvent]:
 
 async def fetch_all_sources(limit: int = 20) -> list[EarthquakeEvent]:
     """全有効ソースを並列取得し、重複排除した統合リストを返す。
-    優先順: P2P > USGS > JMA XML
+    優先順: P2P > USGS > JMA XML > EMSC > IRIS > GeoNet > INGV > GDACS > JMA Intensity > Tsunami Obs
     """
     # coroutine を直接 gather に渡す（create_task は不要）
     results = await asyncio.gather(
         p2p_fetch(limit=limit),
         usgs_fetch(limit=limit),
         jma_xml_fetch(limit=limit),
+        emsc_fetch(limit=limit),
+        iris_fetch(limit=limit),
+        geonet_fetch(limit=limit),
+        ingv_fetch(limit=limit),
+        gdacs_fetch(limit=limit),
+        jma_intensity_fetch(limit=limit),
+        tsunami_obs_fetch(limit=limit),
         return_exceptions=True,
     )
 
     all_events: list[EarthquakeEvent] = []
-    source_names = ["p2p", "usgs", "jma_xml"]
+    source_names = ["p2p", "usgs", "jma_xml", "emsc", "iris", "geonet", "ingv", "gdacs", "jma_intensity", "tsunami_obs"]
     now = datetime.now(timezone.utc)
     for name, result in zip(source_names, results):
         if isinstance(result, Exception):

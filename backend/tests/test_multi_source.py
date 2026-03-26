@@ -66,9 +66,17 @@ async def test_fetch_all_sources_aggregates():
     p2p_event = _make_event("p2p-001", 35.6, 139.7, 5.5, "p2p")
     usgs_event = _make_event("usgs-002", 38.0, 141.5, 4.8, "usgs")
 
+    empty = AsyncMock(return_value=[])
     with patch("app.infrastructure.multi_source.p2p_fetch", AsyncMock(return_value=[p2p_event])):
         with patch("app.infrastructure.multi_source.usgs_fetch", AsyncMock(return_value=[usgs_event])):
-            with patch("app.infrastructure.multi_source.jma_xml_fetch", AsyncMock(return_value=[])):
-                result = await fetch_all_sources(limit=20)
+            with patch("app.infrastructure.multi_source.jma_xml_fetch", empty):
+                with patch("app.infrastructure.multi_source.emsc_fetch", empty):
+                    with patch("app.infrastructure.multi_source.iris_fetch", empty):
+                        with patch("app.infrastructure.multi_source.geonet_fetch", empty):
+                            with patch("app.infrastructure.multi_source.ingv_fetch", empty):
+                                with patch("app.infrastructure.multi_source.gdacs_fetch", empty):
+                                    with patch("app.infrastructure.multi_source.jma_intensity_fetch", empty):
+                                        with patch("app.infrastructure.multi_source.tsunami_obs_fetch", empty):
+                                            result = await fetch_all_sources(limit=20)
 
     assert len(result) == 2
