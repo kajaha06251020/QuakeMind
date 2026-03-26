@@ -149,6 +149,9 @@ app.include_router(realtime_router)
 from app.interfaces.research_router import router as research_router
 app.include_router(research_router)
 
+from app.interfaces.data_quality_router import router as data_quality_router
+app.include_router(data_quality_router)
+
 
 @app.get("/status")
 async def get_status():
