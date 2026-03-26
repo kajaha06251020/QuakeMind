@@ -149,3 +149,63 @@ async def cascade_sim(lat: float = Query(...), lon: float = Query(...), magnitud
 async def communicate(probability: float = Query(...), audience: str = Query(default="general"), timeframe: str = Query(default="7日間")):
     from app.services.uncertainty_communicator import communicate_risk
     return communicate_risk(probability, audience=audience, timeframe=timeframe)
+
+
+@router.get("/streaming-pipeline")
+async def streaming_status():
+    from app.services.streaming_pipeline import get_pipeline_status
+    return get_pipeline_status()
+
+
+@router.get("/model-versions")
+async def model_versions(analysis: Optional[str] = None):
+    from app.services.model_versioning import get_version_history
+    return {"versions": get_version_history(analysis)}
+
+
+@router.get("/audit-log")
+async def audit(limit: int = Query(default=50), action: Optional[str] = None):
+    from app.services.audit_trail import get_audit_log
+    return {"log": get_audit_log(limit, action)}
+
+
+@router.post("/benchmark")
+async def benchmark(data: dict):
+    from app.services.auto_benchmark import run_benchmark
+    return run_benchmark(data.get("predictions", []), data.get("observations", []))
+
+
+@router.get("/bilingual")
+async def bilingual(template: str = Query(...), language: str = Query(default="ja")):
+    from app.services.multilingual import translate
+    return {"text": translate(template, language)}
+
+
+@router.get("/cache-stats")
+async def cache():
+    from app.services.api_cache import cache_stats
+    return cache_stats()
+
+
+@router.get("/ws-status")
+async def ws():
+    from app.services.websocket_push import get_ws_status
+    return get_ws_status()
+
+
+@router.get("/plugins")
+async def plugins():
+    from app.services.plugin_system import list_plugins
+    return list_plugins()
+
+
+@router.post("/federated/submit")
+async def fed_submit(data: dict):
+    from app.services.federated_learning import submit_update
+    return submit_update(data.get("institution", "anon"), data.get("weights", []), data.get("n_samples", 0))
+
+
+@router.get("/federated/aggregate")
+async def fed_aggregate():
+    from app.services.federated_learning import get_aggregated_model
+    return get_aggregated_model()
