@@ -346,3 +346,110 @@ async def criticality(region: Optional[str] = None, start: Optional[str] = None,
     from app.usecases.criticality import compute_criticality_index
     records = await _get_records(region, start, end)
     return compute_criticality_index(records)
+
+
+@router.get("/meta-cognition")
+async def meta_cognition(region: Optional[str] = None):
+    from app.services.meta_cognition import self_evaluate
+    records = await _get_records(region=region)
+    return await self_evaluate(records)
+
+
+@router.get("/adversarial-test")
+async def adversarial(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.services.adversarial_testing import adversarial_test
+    records = await _get_records(region, start, end)
+    return adversarial_test(records)
+
+
+@router.get("/emergent-patterns")
+async def emergent(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.emergent_patterns import detect_emergent_patterns
+    records = await _get_records(region, start, end)
+    return detect_emergent_patterns(records)
+
+
+@router.get("/surprise")
+async def surprise(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.predictive_coding import compute_surprise
+    records = await _get_records(region, start, end)
+    return compute_surprise(records)
+
+
+@router.get("/renormalization")
+async def renorm(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.renormalization import renormalization_analysis
+    records = await _get_records(region, start, end)
+    return renormalization_analysis(records)
+
+
+@router.get("/distribution-change")
+async def dist_change(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.info_geometry import compute_distribution_change
+    import numpy as np
+    records = await _get_records(region, start, end)
+    if len(records) < 20:
+        return {"error": "イベント数不足"}
+    mags = np.array([r.magnitude for r in records])
+    return compute_distribution_change(mags)
+
+
+@router.get("/max-entropy")
+async def max_ent(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.max_entropy import max_entropy_rate
+    import numpy as np
+    from collections import Counter
+    from datetime import datetime as dt, timedelta, timezone as tz
+    records = await _get_records(region, start, end)
+    if len(records) < 10:
+        return {"error": "イベント数不足"}
+
+    def _ts(e):
+        try:
+            return dt.fromisoformat(e.timestamp.replace("Z", "+00:00"))
+        except Exception:
+            return dt(2000, 1, 1, tzinfo=tz.utc)
+
+    timestamps = [_ts(e) for e in records]
+    daily = Counter(t.date() for t in timestamps)
+    counts = list(daily.values())
+    return max_entropy_rate(float(np.mean(counts)), float(np.var(counts)))
+
+
+@router.get("/state-space")
+async def state_sp(region: Optional[str] = None, start: Optional[str] = None, end: Optional[str] = None):
+    from app.usecases.state_space import kalman_stress_filter
+    import numpy as np
+    from collections import Counter
+    from datetime import datetime as dt, timedelta, timezone as tz
+    records = await _get_records(region, start, end)
+    if len(records) < 10:
+        return {"error": "イベント数不足"}
+
+    def _ts(e):
+        try:
+            return dt.fromisoformat(e.timestamp.replace("Z", "+00:00"))
+        except Exception:
+            return dt(2000, 1, 1, tzinfo=tz.utc)
+
+    timestamps = sorted([_ts(e) for e in records])
+    first = timestamps[0].date()
+    last = timestamps[-1].date()
+    daily = Counter(t.date() for t in timestamps)
+    n_days = (last - first).days + 1
+    counts = [float(daily.get(first + timedelta(days=d), 0)) for d in range(n_days)]
+    return kalman_stress_filter(counts)
+
+
+@router.get("/digital-twin")
+async def digital_twin(region: Optional[str] = None):
+    from app.usecases.fault_digital_twin import compute_digital_twin
+    records = await _get_records(region=region)
+    return compute_digital_twin(records)
+
+
+@router.get("/optimal-observation")
+async def optimal_obs(region: Optional[str] = None, n: int = Query(default=3, ge=1, le=8)):
+    from app.usecases.optimal_observation import recommend_observation_sites
+    records = await _get_records(region=region)
+    return recommend_observation_sites(records, n)
