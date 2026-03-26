@@ -212,3 +212,37 @@ async def generate_notebook(region: Optional[str] = None):
         pass
     md = generate_daily_notebook(analyses)
     return PlainTextResponse(content=md, media_type="text/markdown")
+
+
+@router.post("/generate-hypotheses")
+async def gen_hypotheses(analysis_results: dict):
+    from app.services.llm_hypothesis import generate_hypotheses_from_analysis
+    return {"hypotheses": await generate_hypotheses_from_analysis(analysis_results)}
+
+
+@router.post("/causal-test")
+async def causal_test(x: list[float], y: list[float], max_lag: int = 5):
+    from app.usecases.causal_inference import bidirectional_causality
+    import numpy as np
+    return bidirectional_causality(np.array(x), np.array(y), max_lag)
+
+
+@router.get("/counterfactual")
+async def counterfactual(event_id: str = Query(...), region: Optional[str] = None, hours: int = Query(default=72)):
+    from app.usecases.counterfactual import counterfactual_analysis
+    records = await _get_records(region=region)
+    return counterfactual_analysis(records, event_id, hours)
+
+
+@router.get("/data-gaps")
+async def data_gaps(region: Optional[str] = None):
+    from app.services.active_learning import identify_data_gaps
+    records = await _get_records(region=region)
+    return identify_data_gaps(records)
+
+
+@router.get("/uncertainty-map")
+async def uncertainty_map():
+    from app.services.active_learning import compute_model_uncertainty_map
+    records = await _get_records()
+    return compute_model_uncertainty_map(records)
