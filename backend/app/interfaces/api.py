@@ -140,6 +140,9 @@ app.include_router(statistics_router)
 from app.interfaces.advanced_analysis_router import router as advanced_analysis_router
 app.include_router(advanced_analysis_router)
 
+from app.interfaces.prediction_router import router as prediction_router
+app.include_router(prediction_router)
+
 
 @app.get("/status")
 async def get_status():
